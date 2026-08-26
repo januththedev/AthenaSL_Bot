@@ -7,6 +7,14 @@ export const HELP_TEXT = `🤖 <b>Athena — commands</b>
 
 <b>Ask AI</b>
 /ask &lt;question&gt; — ask the AI (or reply to a message with /ask)
+/setpersona &lt;text&gt; — customize /ask style for THIS group • /persona
+
+<b>Study tools</b>
+/remind &lt;1h30m | 18:30 | 2026-09-01&gt; &lt;text&gt; • /reminders • /delremind
+/exam &lt;YYYY-MM-DD&gt; &lt;name&gt; — daily countdown • /exams
+/quiz &lt;topic&gt; — 5-question MCQ quiz with scoreboard • /quizstop
+/summarize (reply) — summarize a long message or a link
+/recap — AI recap of today's chat • /resources — links shared
 
 <b>Moderation (admins)</b>
 /warn [reason] — warn (reply) • /warnings • /resetwarn

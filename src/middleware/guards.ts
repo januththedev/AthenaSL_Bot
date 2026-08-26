@@ -5,6 +5,7 @@ import { enforceLock } from "../modules/locks.js";
 import { bumpFloodBucket } from "../store.js";
 import { findFilterReply, filterCache } from "../modules/filters.js";
 import { replyFirstNoteTag } from "../modules/notes.js";
+import { logForRecap } from "../modules/recap.js";
 
 /** True when the message is a command (/foo or !foo style). */
 export function isCommand(msg: Message): boolean {
@@ -81,6 +82,15 @@ export function enforcementPipeline() {
         },
       );
       if (handled) return;
+    }
+
+    // Recap + resource logging (only sees messages when Group Privacy is OFF).
+    if (!from.is_bot && !isCommand(msg)) {
+      try {
+        await logForRecap(chatId, from, msg);
+      } catch (err) {
+        console.error("recap log failed", err);
+      }
     }
 
     // 3. Antiflood

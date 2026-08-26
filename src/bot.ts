@@ -16,6 +16,11 @@ import { registerNoteCommands } from "./modules/notes.js";
 import { registerFilterCommands } from "./modules/filters.js";
 import { registerFloodCommands } from "./modules/flood.js";
 import { registerInfo } from "./modules/info.js";
+import { registerPersona } from "./modules/persona.js";
+import { registerReminders } from "./modules/reminders.js";
+import { registerQuiz } from "./modules/quiz.js";
+import { registerSummarize } from "./modules/summarize.js";
+import { registerRecap } from "./modules/recap.js";
 
 let cached: AthenaBot | undefined;
 
@@ -34,6 +39,13 @@ export function getBot(): AthenaBot {
 
   registerMisc(bot);
   registerAsk(bot);
+  registerPersona(bot);
+
+  // Study tools
+  registerReminders(bot);
+  registerQuiz(bot);
+  registerSummarize(bot);
+  registerRecap(bot);
 
   registerRules(bot);
   registerLockCommands(bot);

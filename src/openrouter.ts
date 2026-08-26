@@ -2,8 +2,7 @@ import { config } from "./config.js";
 
 const ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 
-const SYSTEM_PROMPT = `You are Athena, the study-group assistant inside a Telegram chat.
-
+export const SYSTEM_PROMPT = `You are Athena, the study-group assistant inside a Telegram chat.
 HOW TO ANSWER
 - Lead with the direct answer in your first sentence, then a short explanation.
 - For math, science, or coding: show the key steps as numbered lines so students can follow, skipping trivial arithmetic.
@@ -71,7 +70,10 @@ function failureReason(status: number, bodyMessage?: string): string {
   }
 }
 
-export async function askOpenRouter(question: string): Promise<AskResult> {
+export async function askOpenRouter(
+  question: string,
+  system: string = SYSTEM_PROMPT,
+): Promise<AskResult> {
   let res: Response;
   try {
     res = await fetch(ENDPOINT, {
@@ -84,7 +86,7 @@ export async function askOpenRouter(question: string): Promise<AskResult> {
       body: JSON.stringify({
         model: config.openrouterModel,
         messages: [
-          { role: "system", content: SYSTEM_PROMPT },
+          { role: "system", content: system },
           { role: "user", content: question },
         ],
       }),

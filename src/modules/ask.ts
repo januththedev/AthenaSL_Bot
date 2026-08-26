@@ -3,6 +3,8 @@ import { config } from "../config.js";
 import { askOpenRouter, chunkText } from "../openrouter.js";
 import { incrAskUsage } from "../store.js";
 import { isAdmin } from "../middleware/auth.js";
+import { personaSystemSuffix } from "./persona.js";
+import { SYSTEM_PROMPT as SYSTEM_BASE } from "../openrouter.js";
 
 const USAGE = "Usage: /ask <question> — or reply to a message with /ask.";
 
@@ -43,7 +45,8 @@ export function registerAsk(bot: AthenaBot): void {
     }
 
     const thinking = await ctx.reply("🤔 Thinking…");
-    const result = await askOpenRouter(question);
+    const system = SYSTEM_BASE + personaSystemSuffix(ctx.settings?.persona);
+    const result = await askOpenRouter(question, system);
     const answer = result.ok ? result.text : `⚠️ ${result.reason}`;
 
     const parts = chunkText(answer);

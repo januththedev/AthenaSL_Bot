@@ -11,7 +11,16 @@ TypeScript · grammY · Vercel serverless · Upstash Redis · OpenRouter.
 
 ## Features
 
+**AI & study tools**
 - `/ask <question>` — AI answers via OpenRouter; **reply to any message with /ask** to have it answered. Per-user daily limit (admins exempt).
+- `/setpersona <text>` — **per-group AI customization**: admins define how `/ask` answers in *their* group only (language, curriculum, format). `/persona` to view, `/resetpersona` to clear.
+- `/remind 1h30m|18:30|2026-09-01 <text>` — reminders (scheduler runs every minute) • `/reminders` • `/delremind`
+- `/exam <YYYY-MM-DD> <name>` — daily countdown posted to the chat • `/exams`
+- `/quiz <topic>` — AI-generated 5-question MCQ quiz with inline buttons and a scoreboard • `/quizstop`
+- `/summarize` (reply) — summarize a long message or a linked article
+- `/recap` — AI recap of today's chat • `/resources` — auto-indexed links shared in the group
+
+**Group management (Rose-style)**
 - Welcome & goodbye messages with fillings `{first} {last} {fullname} {username} {id} {chatname} {count}`
 - Rules (`/setrules`, `/rules`)
 - Warnings with configurable limit/action (`/warn`, `/warnings`, `/resetwarn`, `/warnlimit N`, `/warnaction ban|kick|mute`) + inline "remove warning" button
@@ -22,6 +31,26 @@ TypeScript · grammY · Vercel serverless · Upstash Redis · OpenRouter.
 - Antiflood with temporary mute (`/antiflood on|off|N`)
 - Info tools (`/info`, `/id`, `/admins`, `/report`)
 - Housekeeping (`/pin`, `/unpin`, `/cleanservice on|off`, `/help`, `/about`)
+
+## Per-group customization
+
+Every setting is stored **per chat id** — nothing leaks between groups. Each group can have its
+own welcome text, rules, warn policy, locks, notes, filters, and — via `/setpersona` — its own
+AI answer style. Example:
+
+```
+/setpersona Answer in Sinhala first, then English.
+Focus on A/L Biology syllabus. Always end with one exam-style practice question.
+```
+
+## Scheduler (reminders & exam countdowns)
+
+- **Locally:** `npm run dev` runs the scheduler every 60 s alongside polling.
+- **On Vercel:** `vercel.json` ships a daily cron (Hobby plan limit). For minute-level reminders
+  on Hobby, point any external pinger (e.g. cron-job.org) at `POST /api/cron` with header
+  `Authorization: Bearer <CRON_SECRET>` every minute. On Pro, change the vercel.json cron
+  schedule to `* * * * *`.
+- Clock-based times (`18:30`) use the server timezone — **UTC on Vercel**.
 
 ## Quick start
 
@@ -76,6 +105,8 @@ Every request is authenticated via the webhook secret token header — requests 
 | `OPENROUTER_API_KEY` | ✅ | AI answers |
 | `OPENROUTER_MODEL` | – | Model id. Free slugs rotate often — browse [openrouter.ai/models?max_price=0](https://openrouter.ai/models?max_price=0). Default: `nvidia/nemotron-3.5-lightning:free` |
 | `ASK_DAILY_LIMIT` | – | Per-user /ask calls per day (default 10) |
+| `CRON_SECRET` | prod | Protects `/api/cron` (reminders, exam countdowns) |
+| `USE_LOCAL_STORE` | – | `1` = store data in a local JSON file instead of Upstash (dev) |
 
 > Free OpenRouter keys allow ~50 requests/day unless you've purchased ≥10 credits
 > (then 1000/day). The per-user quota protects your key from being drained.

@@ -18,6 +18,7 @@ export interface ChatSettings {
   welcome: WelcomeCfg;
   goodbye: WelcomeCfg;
   rules: string | null;
+  persona: string | null;
   warnLimit: number;
   warnAction: WarnAction;
   antiflood: { on: boolean; limit: number; muteMinutes: number };
@@ -29,6 +30,7 @@ export const DEFAULT_SETTINGS: ChatSettings = {
   welcome: { enabled: true, text: null },
   goodbye: { enabled: true, text: null },
   rules: null,
+  persona: null,
   warnLimit: 3,
   warnAction: "ban",
   antiflood: { on: false, limit: 5, muteMinutes: 10 },
@@ -66,6 +68,7 @@ export function mergeSettings(raw: unknown): ChatSettings {
       text: typeof goodbye?.text === "string" ? goodbye.text : d.goodbye.text,
     },
     rules: typeof r["rules"] === "string" ? r["rules"] : d.rules,
+    persona: typeof r["persona"] === "string" ? r["persona"] : d.persona,
     warnLimit:
       typeof r["warnLimit"] === "number" && r["warnLimit"] > 0
         ? Math.floor(r["warnLimit"])
@@ -223,6 +226,27 @@ function backend(): StoreBackend {
       : new UpstashBackend();
   }
   return backendInstance;
+}
+
+// ---------------------------------------------------------------------------
+// Generic kv access (used by study-tool modules: reminders, quiz, recap)
+// ---------------------------------------------------------------------------
+
+export async function kvGet<T>(key: string): Promise<T | null> {
+  return backend().get<T>(key);
+}
+
+export async function kvSet(key: string, value: unknown, ttlSeconds?: number): Promise<void> {
+  await backend().set(key, value);
+  if (ttlSeconds) await backend().expire(key, ttlSeconds);
+}
+
+export async function kvDel(key: string): Promise<number> {
+  return backend().del(key);
+}
+
+export async function kvKeys(pattern: string): Promise<string[]> {
+  return backend().keys(pattern);
 }
 
 // ---------------------------------------------------------------------------
