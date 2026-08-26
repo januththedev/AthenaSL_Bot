@@ -106,7 +106,9 @@ Every request is authenticated via the webhook secret token header — requests 
 | `WEBHOOK_SECRET` | prod | Secret sent back on every webhook call |
 | `POSTGRES_URL` | ✅ prod | Neon Postgres — injected automatically by Vercel's Storage → Neon integration |
 | `OPENROUTER_API_KEY` | ✅ | AI answers |
-| `OPENROUTER_MODEL` | – | Model id. Free slugs rotate often — browse [openrouter.ai/models?max_price=0](https://openrouter.ai/models?max_price=0). Default: `nvidia/nemotron-3.5-lightning:free` |
+| `OPENROUTER_MODEL` | – | Model id. Free slugs rotate often — browse [openrouter.ai/models?max_price=0](https://openrouter.ai/models?max_price=0). Default: `minimax/minimax-m2.7:free` |
+| `OPENROUTER_MODEL_FALLBACK` | – | Tried automatically when the primary is rate-limited or returns junk |
+| `POLLINATIONS_MODEL` | – | Image model for /draw (default `flux`) |
 | `ASK_DAILY_LIMIT` | – | Per-user /ask calls per day (default 10) |
 | `CRON_SECRET` | prod | Protects `/api/cron` (reminders, exam countdowns) |
 | `USE_LOCAL_STORE` | – | `1` = store data in a local JSON file instead of Postgres (dev) |
@@ -141,7 +143,7 @@ npm test            # vitest (pure logic: templates, locks, filters, quotas, AI 
 
 - **Bot ignores commands in a group** — make sure it was added *after* deployment and that privacy mode allows commands (or just make it admin).
 - **"I need permission to …"** — promote the bot with *Delete messages* and *Ban users* rights.
-- **Empty/odd /ask answers** — try another `OPENROUTER_MODEL`; free models rotate and some emit `<think>` blocks (already stripped).
+- **Empty/odd /ask answers** — try another `OPENROUTER_MODEL`; free models rotate, some leak reasoning or safety fragments (already filtered), and the fallback model kicks in automatically.
 
 ---
 
