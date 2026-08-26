@@ -186,7 +186,7 @@ export function renderChartSvg(spec: ChartSpec): string {
         const y = baseline - h;
         parts.push(`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.max(h, 2).toFixed(1)}" rx="6" fill="${PALETTE[i % PALETTE.length]}"/>`);
         parts.push(`<text x="${(x + barW / 2).toFixed(1)}" y="${(y - 10).toFixed(1)}" ${font(16)} text-anchor="middle">${label(item.value)}</text>`);
-        parts.push(`<text x="${(x + barW / 2).toFixed(1)}" y="${baseline + 26}" ${font(15, "normal", "#374151")} text-anchor="middle">${escapeXml(item.label.slice(0, 18))}</text>`);
+        parts.push(`<text x="${(x + barW / 2).toFixed(1)}" y="${baseline + 26}" ${font(15, "normal", "#374151")} text-anchor="middle">${escapeXml(item.label.slice(0, 26))}</text>`);
       });
     } else {
       // line
@@ -198,7 +198,7 @@ export function renderChartSvg(spec: ChartSpec): string {
       spec.items.forEach((item, i) => {
         parts.push(`<circle cx="${px(i).toFixed(1)}" cy="${py(item.value).toFixed(1)}" r="6" fill="#6d28d9"/>`);
         parts.push(`<text x="${px(i).toFixed(1)}" y="${(py(item.value) - 14).toFixed(1)}" ${font(15)} text-anchor="middle">${label(item.value)}</text>`);
-        parts.push(`<text x="${px(i).toFixed(1)}" y="${baseline + 26}" ${font(15, "normal", "#374151")} text-anchor="middle">${escapeXml(item.label.slice(0, 18))}</text>`);
+        parts.push(`<text x="${px(i).toFixed(1)}" y="${baseline + 26}" ${font(15, "normal", "#374151")} text-anchor="middle">${escapeXml(item.label.slice(0, 24))}</text>`);
       });
     }
   }
