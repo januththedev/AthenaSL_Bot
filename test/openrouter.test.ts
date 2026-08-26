@@ -159,14 +159,33 @@ describe("askOpenRouter", () => {
     if (!res.ok) expect(res.reason).toContain("Both AI providers");
   });
 
-  it("maps a 401 to a friendly key error", async () => {
+  it("maps a 401 to a clear key error when it is the only key", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => new Response(JSON.stringify({ error: { message: "bad key" } }), { status: 401 })),
     );
     const res = await askOpenRouter("q");
     expect(res.ok).toBe(false);
-    if (!res.ok) expect(res.reason).toContain("API key");
+    if (!res.ok) expect(res.reason).toContain("rejected (401/402)");
+  });
+
+  it("skips a rejected key and uses the next", async () => {
+    process.env["OPENROUTER_API_KEYS"] = "sk-key-bad,sk-key-good";
+    resetFreeModelCache();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: unknown, init?: unknown) => {
+        const u = String(url);
+        if (u.includes("/models")) return new Response(JSON.stringify({ data: [] }), { status: 200 });
+        const auth = JSON.stringify((init as RequestInit).headers ?? {});
+        if (auth.includes("sk-key-bad")) return new Response(JSON.stringify({ error: { message: "bad key" } }), { status: 401 });
+        return new Response(JSON.stringify({ choices: [{ message: { content: "Good key answer." } }] }), { status: 200 });
+      }),
+    );
+    const res = await askOpenRouter("q");
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.text).toBe("Good key answer.");
+    delete process.env["OPENROUTER_API_KEYS"];
   });
 
   it("returns cleaned model output on success", async () => {

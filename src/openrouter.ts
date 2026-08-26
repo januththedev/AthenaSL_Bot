@@ -80,7 +80,9 @@ export function isDegenerate(text: string): boolean {
   return /^(user safety\s*:|safety\s*:|we need to\b|okay,\s|let me\b|let's\b|first,)/i.test(t);
 }
 
-type Attempt = { done: true; result: AskResult } | { done: false };
+type Attempt =
+  | { done: true; result: AskResult }
+  | { done: false; keyRejected?: boolean };
 
 async function callModel(
   key: string,
@@ -121,6 +123,7 @@ async function callModel(
   if (!res.ok) {
     // Rate limits / upstream flakes are worth retrying on the next free model;
     // key and credit problems are not model-specific, so fail immediately.
+    if (res.status === 401 || res.status === 402) return { done: false, keyRejected: true };
     if (res.status === 429 || res.status >= 500) return { done: false };
     return { done: true, result: { ok: false, reason: failureReason(res.status, body?.error?.message) } };
   }
@@ -203,13 +206,25 @@ export async function askOpenRouter(
   const extras = await discoverFreeModels(primary);
   const models = [...primary, ...extras].slice(0, 6);
 
-  // Key-major rotation: an exhausted key fails fast across the model chain,
-  // then the next key gets the full chain. Pollinations stays as the deep fallback.
+  // Key-major rotation: a rejected (401/402) key skips straight to the next key,
+  // a rate-limited key walks the model chain first. Pollinations stays as the
+  // deep fallback so one bad key never takes the bot's AI offline.
+  let sawKeyError = false;
   for (const key of keys) {
+    let nextKey = false;
     for (const model of models) {
       const attempt = await callModel(key, model, question, system);
-      if (attempt.done) return attempt.result;
+      if (!attempt.done) {
+        if (attempt.keyRejected) {
+          sawKeyError = true;
+          nextKey = true;
+          break;
+        }
+        continue;
+      }
+      return attempt.result;
     }
+    if (nextKey) continue;
   }
 
   // Deep fallback: Pollinations' keyless text API — an independent provider,
@@ -217,6 +232,12 @@ export async function askOpenRouter(
   const backup = await askPollinationsText(question, system);
   if (backup.ok) return backup;
 
+  if (sawKeyError) {
+    return {
+      ok: false,
+      reason: `⚠️ All ${keys.length} configured OpenRouter keys were rejected (401/402). Check OPENROUTER_API_KEY and OPENROUTER_API_KEYS in your deployment settings — one key per line, no extra spaces.`,
+    };
+  }
   return {
     ok: false,
     reason:
