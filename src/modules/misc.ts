@@ -16,6 +16,10 @@ export const HELP_TEXT = `🤖 <b>Athena — commands</b>
 /summarize (reply) — summarize a long message or a link
 /recap — AI recap of today's chat • /resources — links shared
 
+<b>Images &amp; artifacts</b>
+/draw &lt;description&gt; — AI-generated image (pollinations.ai)
+/artifact &lt;description&gt; — AI builds an SVG image, code file, or Markdown doc and sends it as a file
+
 <b>Moderation (admins)</b>
 /warn [reason] — warn (reply) • /warnings • /resetwarn
 /warnlimit N — warnings before action • /warnaction ban|kick|mute

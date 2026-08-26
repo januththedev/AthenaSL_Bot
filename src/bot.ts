@@ -21,6 +21,8 @@ import { registerReminders } from "./modules/reminders.js";
 import { registerQuiz } from "./modules/quiz.js";
 import { registerSummarize } from "./modules/summarize.js";
 import { registerRecap } from "./modules/recap.js";
+import { registerDraw } from "./modules/images.js";
+import { registerArtifacts } from "./modules/artifacts.js";
 
 let cached: AthenaBot | undefined;
 
@@ -46,6 +48,8 @@ export function getBot(): AthenaBot {
   registerQuiz(bot);
   registerSummarize(bot);
   registerRecap(bot);
+  registerDraw(bot);
+  registerArtifacts(bot);
 
   registerRules(bot);
   registerLockCommands(bot);

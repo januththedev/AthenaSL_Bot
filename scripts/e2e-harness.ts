@@ -527,10 +527,18 @@ console.log("\n== /ask");
   let m = mark();
   await sendText(CHAT, ADMIN, "/ask");
   await t("bare /ask explains usage", () => expect(hasReply(m, "Usage"), "no usage"));
-  await aiStep(async () => {
-    m = mark();
+  const askOnce = async (): Promise<number> => {
+    const mk = mark();
     await sendText(CHAT, ADMIN, "/ask what is 2+2? one line");
+    return mk;
+  };
+  await aiStep(async () => {
+    m = await askOnce();
   });
+  if (!textsSince(m).some((x) => !x.startsWith("🤔") && !x.startsWith("⚠️"))) {
+    await sleep(8000);
+    m = await askOnce();
+  }
   await t("ask returns a real answer", () => {
     const out = textsSince(m).filter((x) => x.length > 0 && !x.startsWith("🤔"));
     expect(out.some((x) => !x.startsWith("⚠️")), `AI error: ${out.join(" | ").slice(0, 140)}`);
@@ -700,6 +708,36 @@ console.log("\n== /recap /resources (second chat)");
     const text = repliesSince(m).join("\n");
     expect(text.split("https://docs.example.com/guide").length - 1 === 1, "duplicated");
   });
+}
+
+console.log("\n== /draw /artifact");
+{
+  let m = mark();
+  await sendText(CHAT, ADMIN, "/draw a simple flat vector owl logo, purple and gold");
+  await t("draw sends a photo", () => {
+    expect(apiCalled(m, "sendPhoto"), "no photo sent");
+  });
+  m = mark();
+  await sendText(CHAT, ADMIN, "/draw x");
+  await t("draw rejects too-short prompt", () => expect(hasReply(m, "Usage"), "no usage"));
+  await aiStep(async () => {
+    m = mark();
+    await sendText(CHAT, ADMIN, "/artifact an svg pie chart with a 25/75 split, two colors, no text");
+  });
+  await t("artifact svg delivers image or file", () => {
+    expect(apiCalled(m, "sendPhoto") || apiCalled(m, "sendDocument"), "nothing delivered");
+  });
+  await aiStep(async () => {
+    m = mark();
+    await sendText(CHAT, ADMIN, "/artifact a python function is_prime(n) with a docstring");
+  });
+  await t("artifact code delivers document", () => {
+    const doc = since(m).find((c) => c.method === "sendDocument");
+    expect(Boolean(doc), "no document");
+  });
+  m = mark();
+  await sendText(CHAT, ADMIN, "/artifact ok");
+  await t("artifact without description explains usage", () => expect(hasReply(m, "Usage"), "no usage"));
 }
 
 // -------------------------------------------------------------------------

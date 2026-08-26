@@ -57,6 +57,10 @@ export const config = {
   get openrouterFallback(): string {
     return optional("OPENROUTER_MODEL_FALLBACK", "google/gemma-4-31b-it:free");
   },
+  /** Pollinations.ai image model (flux is the general-purpose default). */
+  get pollinationsModel(): string {
+    return optional("POLLINATIONS_MODEL", "flux");
+  },
   /** Per-user daily /ask limit in groups; admins are exempt. */
   get askDailyLimit(): number {
     return optionalInt("ASK_DAILY_LIMIT", 10);

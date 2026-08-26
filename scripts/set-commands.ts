@@ -8,6 +8,8 @@ const commands = [
   { command: "remind", description: "Set a reminder (e.g. /remind 1h30m submit lab)" },
   { command: "exam", description: "Set an exam countdown (admins)" },
   { command: "quiz", description: "Start a 5-question quiz on a topic" },
+  { command: "draw", description: "Generate an image from a description" },
+  { command: "artifact", description: "AI builds an SVG/code/doc file for you" },
   { command: "summarize", description: "Summarize a replied message or link" },
   { command: "recap", description: "AI recap of today's chat" },
   { command: "resources", description: "Links shared in this group" },

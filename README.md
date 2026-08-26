@@ -19,6 +19,8 @@ TypeScript · grammY · Vercel serverless · Neon Postgres · OpenRouter.
 - `/quiz <topic>` — AI-generated 5-question MCQ quiz with inline buttons and a scoreboard • `/quizstop`
 - `/summarize` (reply) — summarize a long message or a linked article
 - `/recap` — AI recap of today's chat • `/resources` — auto-indexed links shared in the group
+- `/draw <description>` — AI image generation via [pollinations.ai](https://pollinations.ai) (free, no key)
+- `/artifact <description>` — Claude-style artifacts for Telegram: the AI authors an **SVG image** (rendered to PNG in-chat, SVG source attached), a **runnable code file**, or a **Markdown doc**, delivered as a download. Shares the `/ask` daily quota.
 
 **Group management (Rose-style)**
 - Welcome & goodbye messages with fillings `{first} {last} {fullname} {username} {id} {chatname} {count}`
