@@ -80,7 +80,7 @@ export function isDegenerate(text: string): boolean {
   return /^(user safety\s*:|safety\s*:|we need to\b|okay,\s|let me\b|let's\b|first,)/i.test(t);
 }
 
-type Attempt = { done: true; result: AskResult } | { done: false; rateLimited?: boolean };
+type Attempt = { done: true; result: AskResult } | { done: false };
 
 async function callModel(
   model: string,
@@ -120,7 +120,7 @@ async function callModel(
   if (!res.ok) {
     // Rate limits / upstream flakes are worth retrying on the next free model;
     // key and credit problems are not model-specific, so fail immediately.
-    if (res.status === 429 || res.status >= 500) return { done: false, rateLimited: res.status === 429 };
+    if (res.status === 429 || res.status >= 500) return { done: false };
     return { done: true, result: { ok: false, reason: failureReason(res.status, body?.error?.message) } };
   }
 
@@ -200,17 +200,54 @@ export async function askOpenRouter(
   const primary = [...new Set([config.openrouterModel, config.openrouterFallback])];
   const extras = await discoverFreeModels(primary);
   const models = [...primary, ...extras].slice(0, 6);
-  let sawRateLimit = false;
 
   for (const model of models) {
     const attempt = await callModel(model, question, system);
     if (attempt.done) return attempt.result;
-    if (attempt.rateLimited) sawRateLimit = true;
   }
+
+  // Deep fallback: Pollinations' keyless text API — an independent provider,
+  // so OpenRouter daily caps or outages don't take the bot's AI offline.
+  const backup = await askPollinationsText(question, system);
+  if (backup.ok) return backup;
+
   return {
     ok: false,
-    reason: sawRateLimit
-      ? "All free AI models are rate-limited right now. The free tier allows ~50 requests/day (resets at midnight UTC) — adding $5 of credits on openrouter.ai raises it to 1,000/day."
-      : `The AI models (${models.join(", ")}) returned unusable answers. Try again in a minute.`,
+    reason:
+      "⚠️ Both AI providers (OpenRouter free models and the Pollinations backup) are rate-limited or unreachable right now. Please try again in a few minutes.",
   };
+}
+
+const POLLINATIONS_TEXT = "https://text.pollinations.ai/openai";
+
+async function askPollinationsText(question: string, system: string): Promise<AskResult> {
+  let res: Response;
+  try {
+    res = await fetch(POLLINATIONS_TEXT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", referrer: "athena-bot" },
+      body: JSON.stringify({
+        model: "openai",
+        referrer: "athena-bot",
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: question },
+        ],
+      }),
+      signal: AbortSignal.timeout(config.askTimeoutMs),
+    });
+  } catch (err) {
+    console.error("pollinations text failed", err);
+    return { ok: false, reason: "unreachable" };
+  }
+  if (!res.ok) {
+    console.error("pollinations text status", res.status);
+    return { ok: false, reason: `status ${res.status}` };
+  }
+  const data = (await res.json().catch(() => undefined)) as
+    | { choices?: { message?: { content?: string | null } }[] }
+    | undefined;
+  const text = stripThinking(data?.choices?.[0]?.message?.content ?? "");
+  if (text.length === 0 || isDegenerate(text)) return { ok: false, reason: "empty" };
+  return { ok: true, text };
 }

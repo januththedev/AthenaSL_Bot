@@ -118,12 +118,14 @@ Every request is authenticated via the webhook secret token header — requests 
 
 ### Always-free model chain
 
-The bot only ever uses **free** models, tried in this order: `OPENROUTER_MODEL` →
+The bot only ever uses **free** AI, tried in this order: `OPENROUTER_MODEL` →
 `OPENROUTER_MODEL_FALLBACK` → up to 4 more `:free` models **auto-discovered** from
-OpenRouter's public catalog (cached 1 h, preferring known-good families). Junk
-answers ("User Safety: safe", leaked reasoning) and per-model rate limits are
-skipped automatically. Note the ~50/day free cap is **account-level** — model
-rotation can't bypass it; credits raise it to 1,000/day.
+OpenRouter's public catalog (cached 1 h, preferring known-good families) → and as a
+final safety net, the **keyless Pollinations text API** — an independent provider,
+so OpenRouter caps or outages don't take the bot's AI offline. Junk answers
+("User Safety: safe", leaked reasoning) and per-model rate limits are skipped
+automatically. Note the ~50/day OpenRouter free cap is **account-level** (raised to
+1,000/day with credits) — model rotation spreads load but can't bypass it.
 
 ## Architecture
 

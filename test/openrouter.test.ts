@@ -103,17 +103,36 @@ describe("askOpenRouter", () => {
     expect(tried).toContain("z-ai/glm-5.2:free");
   });
 
-  it("mentions the daily quota when everything is rate-limited", async () => {
+  it("falls back to the keyless Pollinations text API when OpenRouter is limited", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (url: unknown) => {
-        if (String(url).includes("/models")) return new Response(JSON.stringify({ data: [] }), { status: 200 });
-        return new Response(JSON.stringify({ error: { message: "daily cap" } }), { status: 429 });
+        const u = String(url);
+        if (u.includes("/models")) return new Response(JSON.stringify({ data: [] }), { status: 200 });
+        if (u.includes("openrouter.ai")) return new Response(JSON.stringify({ error: { message: "daily cap" } }), { status: 429 });
+        if (u.includes("text.pollinations.ai")) {
+          return new Response(JSON.stringify({ choices: [{ message: { content: "Backup answer." } }] }), { status: 200 });
+        }
+        return new Response("{}", { status: 404 });
+      }),
+    );
+    const res = await askOpenRouter("q");
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.text).toBe("Backup answer.");
+  });
+
+  it("explains when both providers fail", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: unknown) => {
+        const u = String(url);
+        if (u.includes("/models")) return new Response(JSON.stringify({ data: [] }), { status: 200 });
+        return new Response(JSON.stringify({ error: { message: "limited" } }), { status: 429 });
       }),
     );
     const res = await askOpenRouter("q");
     expect(res.ok).toBe(false);
-    if (!res.ok) expect(res.reason).toContain("1,000/day");
+    if (!res.ok) expect(res.reason).toContain("Both AI providers");
   });
 
   it("maps a 401 to a friendly key error", async () => {
@@ -176,6 +195,6 @@ describe("askOpenRouter", () => {
     );
     const res = await askOpenRouter("q");
     expect(res.ok).toBe(false);
-    if (!res.ok) expect(res.reason).toContain("unusable");
+    if (!res.ok) expect(res.reason).toContain("Both AI providers");
   });
 });
