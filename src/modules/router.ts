@@ -29,6 +29,58 @@ export const ROUTE_INSTRUCTION =
   "ROUTE:python   (needs exact computation)\n" +
   "Otherwise answer normally — never use ROUTE when you already know the answer.";
 
+// ---------------------------------------------------------------------------
+// Language detection: Sinhala/Tamil in native script OR romanized (Singlish/
+// Tanglish), which is extremely common in Sri Lanka.
+// ---------------------------------------------------------------------------
+
+const SINHALA_SCRIPT = /[\u0D80-\u0DFF]/;
+const TAMIL_SCRIPT = /[\u0B80-\u0BFF]/;
+
+const SINHALA_ROMANIZED =
+  /\b(mama|mata|mage|muge|oya|oyage|oyata|api|apita|ape|kohomada|kohomane|mokakda|mokada|monawada|kochchara|kochchar|kiyanna|kiyala|dananna|dananne|karanna|karala|ganna|gaththa|wenna|enna|ennako|balanna|balan|pruthuwiya|pruthuvi|lankawe|lanka|sinhala|sinhale|gedara|iskole|iskolaya|passe|hitapu|durak|dura|yanna|yanawa|thiyenawa|thiyenne|wenne)\b/i;
+
+const TAMIL_ROMANIZED =
+  /\b(enna|eppadi|epadi|irukku|iruku|venum|vennum|panra|pannen|solu|sollu|solringa|thambi|akka|anna|vanakkam|nanri|romba|nalla|padikka|eppadi irukku)\b/i;
+
+export type InputLang = "si" | "ta" | "en";
+
+function countMatches(source: string, text: string): number {
+  return (text.toLowerCase().match(new RegExp(source, "gi")) ?? []).length;
+}
+
+/** Detect Sinhala/Tamil in native script or romanized form. Pure. */
+export function detectLanguage(question: string): InputLang {
+  if (SINHALA_SCRIPT.test(question)) return "si";
+  if (TAMIL_SCRIPT.test(question)) return "ta";
+  // Romanized: score both word lists — several words overlap between
+  // Singlish and Tanglish ("enna", "anna"), so the higher count wins.
+  const si = countMatches(SINHALA_ROMANIZED.source, question);
+  const ta = countMatches(TAMIL_ROMANIZED.source, question);
+  if (si === 0 && ta === 0) return "en";
+  return ta > si ? "ta" : "si";
+}
+
+/** Extra system instructions for non-English input; undefined for English. */
+export function languageAddendum(lang: InputLang): string | undefined {
+  if (lang === "si") {
+    return (
+      "\n\nINPUT LANGUAGE: The question is Sinhala, possibly typed in English letters (Singlish). " +
+      "Silently translate it to English first, work out the correct answer, then reply in clear, grammatical Sinhala script. " +
+      "If you are not certain of a Sinhala word, keep the English term in brackets. Never write broken or nonsensical Sinhala — " +
+      "if you cannot produce correct Sinhala, reply in simple English and say so."
+    );
+  }
+  if (lang === "ta") {
+    return (
+      "\n\nINPUT LANGUAGE: The question is Tamil, possibly typed in English letters (Tanglish). " +
+      "Silently translate it to English first, work out the correct answer, then reply in clear, grammatical Tamil script. " +
+      "Never write broken Tamil — if you cannot produce correct Tamil, reply in simple English and say so."
+    );
+  }
+  return undefined;
+}
+
 /**
  * Injected when a question is routed to python execution: real constants,
  * real mission benchmarks and hard bans on the classic failure modes

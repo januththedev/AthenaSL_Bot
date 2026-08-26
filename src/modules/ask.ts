@@ -8,7 +8,7 @@ import { chunkText } from "../utils.js";
 import { personaSystemSuffix } from "./persona.js";
 import { extractChartMarker } from "./charts.js";
 import { renderChartPng } from "./charts.js";
-import { routeDecision, ROUTE_INSTRUCTION, PYTHON_GROUNDING } from "./router.js";
+import { routeDecision, ROUTE_INSTRUCTION, PYTHON_GROUNDING, detectLanguage, languageAddendum } from "./router.js";
 import { askGroq } from "./groq.js";
 import { InputFile } from "grammy";
 import { SYSTEM_PROMPT as SYSTEM_BASE } from "../openrouter.js";
@@ -60,16 +60,22 @@ export function registerAsk(bot: AthenaBot): void {
 
     // Automatic routing: questions needing fresh web facts or exact
     // computation go straight to Groq's compound model (web search + python
-    // execution); everything else flows through the free OpenRouter chain.
+    // execution). Sinhala/Tamil questions (incl. Singlish/Tanglish) also go
+    // to Groq — it handles them far better than the free OpenRouter models.
     const route = routeDecision(question);
-    const routed = route !== "auto";
+    const lang = detectLanguage(question);
+    const langNote = languageAddendum(lang);
+    const routed = route !== "auto" || lang !== "en";
     const thinking = await ctx.reply(routed ? "🛰️ Working on it (with tools)…" : "🤔 Thinking…");
     const persona = personaSystemSuffix(ctx.settings?.persona);
-    const system = SYSTEM_BASE + CHART_INSTRUCTION + ROUTE_INSTRUCTION + persona;
+    const system = SYSTEM_BASE + CHART_INSTRUCTION + ROUTE_INSTRUCTION + persona + (langNote ?? "");
 
     let result: AskResult;
     if (routed) {
-      const grounded = route === "python" ? SYSTEM_BASE + PYTHON_GROUNDING + persona : SYSTEM_BASE + persona;
+      const grounded =
+        route === "python"
+          ? SYSTEM_BASE + (langNote ?? "") + PYTHON_GROUNDING + persona
+          : SYSTEM_BASE + (langNote ?? "") + persona;
       result = await askGroq(question, grounded, config.groqCompoundModel);
       if (!result.ok) result = await askOpenRouter(question, system);
     } else {
@@ -78,7 +84,11 @@ export function registerAsk(bot: AthenaBot): void {
         // The model itself may request a reroute to tools it doesn't have.
         const marker = /^ROUTE:(web|python)\s*$/im.exec(result.text);
         if (marker) {
-          const groqResult = await askGroq(question, SYSTEM_BASE + persona, config.groqCompoundModel);
+          const groqResult = await askGroq(
+            question,
+            SYSTEM_BASE + (langNote ?? "") + persona,
+            config.groqCompoundModel,
+          );
           if (groqResult.ok) result = groqResult;
           else {
             result = { ok: true, text: result.text.replace(marker[0], "").trim() };

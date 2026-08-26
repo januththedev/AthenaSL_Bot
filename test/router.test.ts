@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { routeDecision, ROUTE_INSTRUCTION, PYTHON_GROUNDING } from "../src/modules/router.js";
+import { routeDecision, ROUTE_INSTRUCTION, PYTHON_GROUNDING, detectLanguage, languageAddendum } from "../src/modules/router.js";
 
 describe("routeDecision", () => {
   it("routes computation questions to python", () => {
@@ -43,5 +43,23 @@ describe("routeDecision", () => {
     expect(PYTHON_GROUNDING).toContain("rocket equation");
     expect(PYTHON_GROUNDING).toContain("never use LaTeX");
     expect(PYTHON_GROUNDING).toContain("NEVER assume constant acceleration");
+  });
+
+  it("detects Sinhala in script and romanized form", () => {
+    expect(detectLanguage("පෘථිවියේ සිට සඳට දුර")).toBe("si");
+    expect(detectLanguage("pruthuwiye idl handt kochchara durd")).toBe("si");
+    expect(detectLanguage("mama dananna one physics gen")).toBe("si");
+    expect(detectLanguage("explain gravity simply")).toBe("en");
+  });
+
+  it("detects Tamil in script and romanized form", () => {
+    expect(detectLanguage("இது என்ன")).toBe("ta");
+    expect(detectLanguage("enna idhu, eppadi irukku")).toBe("ta");
+  });
+
+  it("adds a translate-first instruction for romanized input", () => {
+    expect(languageAddendum("si")).toContain("Singlish");
+    expect(languageAddendum("si")).toContain("Never write broken");
+    expect(languageAddendum("en")).toBeUndefined();
   });
 });
