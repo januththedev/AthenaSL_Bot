@@ -1,8 +1,7 @@
+import { waitUntil } from "@vercel/functions";
 import { getBot } from "../src/bot.js";
 import type { Update } from "grammy/types";
 
-// Vercel injects compatible req/res objects; we avoid importing @vercel/node
-// just for types by describing the small surface we use.
 interface RequestLike {
   method?: string;
   headers: Record<string, string | string[] | undefined>;
@@ -17,6 +16,27 @@ function header(req: RequestLike, name: string): string {
   return Array.isArray(v) ? (v[0] ?? "") : (v ?? "");
 }
 
+// Blocks Telegram's retry-storm pattern: when a previous attempt ran long,
+// Telegram re-delivers the update — warm instances see the same update_id
+// again and skip it.
+const processedUpdates = new Set<number>();
+const MAX_TRACKED = 600;
+
+function markProcessed(updateId: number): boolean {
+  if (processedUpdates.has(updateId)) return false;
+  processedUpdates.add(updateId);
+  if (processedUpdates.size > MAX_TRACKED) {
+    // Set preserves insertion order — evict the oldest half.
+    let evicted = 0;
+    for (const id of processedUpdates) {
+      processedUpdates.delete(id);
+      if (++evicted >= MAX_TRACKED / 2) break;
+    }
+  }
+  return true;
+}
+
+// grammY needs bot info loaded once per instance before handleUpdate.
 let initPromise: Promise<void> | undefined;
 
 async function ensureInit(): Promise<void> {
@@ -49,10 +69,24 @@ export default async function handler(req: RequestLike, res: ResponseLike): Prom
     return;
   }
 
+  const update = req.body as Update;
+  const updateId = (update as { update_id?: number } | null)?.update_id;
+  if (typeof updateId === "number" && !markProcessed(updateId)) {
+    // Telegram retry of an update we already accepted — do not process twice.
+    res.status(200).json({ ok: true, duplicate: true });
+    return;
+  }
+
   try {
+    // Answer Telegram immediately (its client gives up after ~60s and retries,
+    // which used to duplicate slow AI answers), then keep processing in the
+    // background via waitUntil.
     await ensureInit();
-    await getBot().handleUpdate(req.body as Update);
-    // Always 200 so Telegram doesn't retry-storm on our own handler bugs.
+    waitUntil(
+      getBot()
+        .handleUpdate(update)
+        .catch((err: unknown) => console.error("background update failed", err)),
+    );
     res.status(200).json({ ok: true });
   } catch (err) {
     console.error("webhook update failed", err);
