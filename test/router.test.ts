@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { routeDecision, ROUTE_INSTRUCTION } from "../src/modules/router.js";
+import { routeDecision, ROUTE_INSTRUCTION, PYTHON_GROUNDING } from "../src/modules/router.js";
 
 describe("routeDecision", () => {
   it("routes computation questions to python", () => {
@@ -35,5 +35,13 @@ describe("routeDecision", () => {
   it("exposes the ROUTE instruction for the system prompt", () => {
     expect(ROUTE_INSTRUCTION).toContain("ROUTE:web");
     expect(ROUTE_INSTRUCTION).toContain("ROUTE:python");
+  });
+
+  it("grounds python-routed answers in real physics", () => {
+    expect(PYTHON_GROUNDING).toContain("3.986×10¹⁴");
+    expect(PYTHON_GROUNDING).toContain("Hohmann");
+    expect(PYTHON_GROUNDING).toContain("rocket equation");
+    expect(PYTHON_GROUNDING).toContain("never use LaTeX");
+    expect(PYTHON_GROUNDING).toContain("NEVER assume constant acceleration");
   });
 });

@@ -8,7 +8,7 @@ import { chunkText } from "../utils.js";
 import { personaSystemSuffix } from "./persona.js";
 import { extractChartMarker } from "./charts.js";
 import { renderChartPng } from "./charts.js";
-import { routeDecision, ROUTE_INSTRUCTION } from "./router.js";
+import { routeDecision, ROUTE_INSTRUCTION, PYTHON_GROUNDING } from "./router.js";
 import { askGroq } from "./groq.js";
 import { InputFile } from "grammy";
 import { SYSTEM_PROMPT as SYSTEM_BASE } from "../openrouter.js";
@@ -69,7 +69,8 @@ export function registerAsk(bot: AthenaBot): void {
 
     let result: AskResult;
     if (routed) {
-      result = await askGroq(question, SYSTEM_BASE + persona, config.groqCompoundModel);
+      const grounded = route === "python" ? SYSTEM_BASE + PYTHON_GROUNDING + persona : SYSTEM_BASE + persona;
+      result = await askGroq(question, grounded, config.groqCompoundModel);
       if (!result.ok) result = await askOpenRouter(question, system);
     } else {
       result = await askOpenRouter(question, system);
