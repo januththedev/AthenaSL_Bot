@@ -92,7 +92,7 @@ export function languageAddendum(lang: InputLang): string | undefined {
 export const PYTHON_GROUNDING =
 
   "\n\nCOMPUTATION GROUNDING (follow exactly):\n" +
-  "- MATH FORMAT: never use LaTeX (no \\frac, \\sqrt, ^{}). Write plain text: v = √(μ/r) = 1.02 km/s, x², 3.84×10⁸ m.\n" +
+  "- MATH FORMAT: never use LaTeX (no \\frac, \\sqrt, ^{}) and never markdown tables — write plain text: v = √(μ/r) = 1.02 km/s, x², 3.84×10⁸ m. Use dashes for lists.\n" +
   "- Write python that computes step by step and print every intermediate value, so the student can follow.\n" +
   "- REAL CONSTANTS: Earth μ = GM = 3.986×10¹⁴ m³/s²; Moon μ = 4.904×10¹² m³/s²; Earth radius 6,371 km; Earth-Moon distance 384,400 km; g₀ = 9.81 m/s².\n" +
   "- REAL SPACE BENCHMARKS: surface→low Earth orbit ≈ 9.4 km/s (incl. losses); LEO orbital speed 7.8 km/s; trans-lunar injection from LEO ≈ 3.2 km/s; escape velocity from surface 11.2 km/s; Apollo reached the Moon in ~3 days; a pure Hohmann transfer takes ~5 days, t = π·√(a³/μ) with a = (r₁+r₂)/2.\n" +

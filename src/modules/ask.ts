@@ -77,8 +77,8 @@ export function registerAsk(bot: AthenaBot): void {
       // of actually answering.
       const grounded =
         route === "python"
-          ? SYSTEM_BASE + (langNote ?? "") + PYTHON_GROUNDING + persona
-          : SYSTEM_BASE + (langNote ?? "") + persona;
+          ? SYSTEM_BASE + CHART_INSTRUCTION + (langNote ?? "") + PYTHON_GROUNDING + persona
+          : SYSTEM_BASE + CHART_INSTRUCTION + (langNote ?? "") + persona;
       result = await askGroq(question, grounded, config.groqCompoundModel);
       if (!result.ok) {
         console.error("groq compound failed:", config.groqCompoundModel, result.reason);

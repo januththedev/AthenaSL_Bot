@@ -50,6 +50,7 @@ describe("routeDecision", () => {
     expect(PYTHON_GROUNDING).toContain("Hohmann");
     expect(PYTHON_GROUNDING).toContain("rocket equation");
     expect(PYTHON_GROUNDING).toContain("never use LaTeX");
+    expect(PYTHON_GROUNDING).toContain("never markdown tables");
     expect(PYTHON_GROUNDING).toContain("NEVER assume constant acceleration");
   });
 
