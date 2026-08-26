@@ -140,3 +140,7 @@ npm test            # vitest (pure logic: templates, locks, filters, quotas, AI 
 - **Bot ignores commands in a group** — make sure it was added *after* deployment and that privacy mode allows commands (or just make it admin).
 - **"I need permission to …"** — promote the bot with *Delete messages* and *Ban users* rights.
 - **Empty/odd /ask answers** — try another `OPENROUTER_MODEL`; free models rotate and some emit `<think>` blocks (already stripped).
+
+---
+
+Built by **[Januth Nimnal](https://januth.dev)** · [januth.dev](https://januth.dev)

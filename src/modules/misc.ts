@@ -48,7 +48,8 @@ export function registerMisc(bot: AthenaBot): void {
       await ctx.reply(
         "👋 Hi! I'm <b>Athena</b>, a group-management bot for your study group.\n\n" +
           "Add me to a group and make me an admin, then try <code>/help</code>. " +
-          "Students can use <code>/ask &lt;question&gt;</code> to get AI answers.",
+          "Students can use <code>/ask &lt;question&gt;</code> to get AI answers.\n\n" +
+          '👨‍💻 Built by <a href="https://januth.dev">Januth Nimnal</a>',
         { parse_mode: "HTML" },
       );
     } else {
@@ -63,7 +64,8 @@ export function registerMisc(bot: AthenaBot): void {
   bot.command("about", async (ctx) => {
     await ctx.reply(
       `<b>Athena</b> v${BOT_VERSION}\nGroup management + AI assistant.\n` +
-        "TypeScript • grammY • Vercel • Neon Postgres • OpenRouter",
+        "TypeScript • grammY • Vercel • Neon Postgres • OpenRouter\n\n" +
+        '👨‍💻 Built by <a href="https://januth.dev">Januth Nimnal</a> — <a href="https://januth.dev">januth.dev</a>',
       { parse_mode: "HTML" },
     );
   });
