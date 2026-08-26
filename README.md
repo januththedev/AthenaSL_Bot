@@ -1,7 +1,7 @@
 # Athena 🤖
 
 A Rose-style Telegram group-management bot with an AI `/ask` command for students.
-TypeScript · grammY · Vercel serverless · Upstash Redis · OpenRouter.
+TypeScript · grammY · Vercel serverless · Neon Postgres · OpenRouter.
 
 > **About "MissRose's source code":** Rose (@MissRose_bot) is closed-source and cannot be
 > legally extracted or reverse-engineered from her servers. Her author's own open-source
@@ -55,7 +55,7 @@ Focus on A/L Biology syllabus. Always end with one exam-style practice question.
 ## Quick start
 
 1. **Bot token** — create a bot with [@BotFather](https://t.me/BotFather), copy the token.
-2. **Redis** — create a free database at [Upstash](https://console.upstash.com) and copy the REST URL + token.
+2. **Database (Neon Postgres)** — easiest from inside Vercel: project → **Storage** → **Create Database** → **Neon** → pick a region near your students → Create. Vercel injects `POSTGRES_URL` automatically. (Or create directly at [neon.tech](https://neon.tech) and paste the connection string as `DATABASE_URL`.)
 3. **AI** — create an API key at [openrouter.ai/keys](https://openrouter.ai/keys).
 4. Clone this repo and install:
 
@@ -81,10 +81,11 @@ npm i -g vercel
 vercel link
 vercel env add TELEGRAM_BOT_TOKEN      # repeat for every variable in .env.example
 vercel env add WEBHOOK_SECRET          # invent a random string (A-Za-z0-9_-)
-vercel env add UPSTASH_REDIS_REST_URL
-vercel env add UPSTASH_REDIS_REST_TOKEN
 vercel env add OPENROUTER_API_KEY
+vercel env add CRON_SECRET
 vercel deploy --prod
+# Then: Vercel dashboard → Storage → Create Database → Neon
+# (links POSTGRES_URL to the project and redeploys)
 ```
 
 Then point Telegram at your deployment:
@@ -101,12 +102,12 @@ Every request is authenticated via the webhook secret token header — requests 
 |---|---|---|
 | `TELEGRAM_BOT_TOKEN` | ✅ | From @BotFather |
 | `WEBHOOK_SECRET` | prod | Secret sent back on every webhook call |
-| `UPSTASH_REDIS_REST_URL` / `_TOKEN` | ✅ | Serverless-friendly Redis |
+| `POSTGRES_URL` | ✅ prod | Neon Postgres — injected automatically by Vercel's Storage → Neon integration |
 | `OPENROUTER_API_KEY` | ✅ | AI answers |
 | `OPENROUTER_MODEL` | – | Model id. Free slugs rotate often — browse [openrouter.ai/models?max_price=0](https://openrouter.ai/models?max_price=0). Default: `nvidia/nemotron-3.5-lightning:free` |
 | `ASK_DAILY_LIMIT` | – | Per-user /ask calls per day (default 10) |
 | `CRON_SECRET` | prod | Protects `/api/cron` (reminders, exam countdowns) |
-| `USE_LOCAL_STORE` | – | `1` = store data in a local JSON file instead of Upstash (dev) |
+| `USE_LOCAL_STORE` | – | `1` = store data in a local JSON file instead of Postgres (dev) |
 
 > Free OpenRouter keys allow ~50 requests/day unless you've purchased ≥10 credits
 > (then 1000/day). The per-user quota protects your key from being drained.
@@ -120,7 +121,7 @@ Telegram ──webhook──▶ api/webhook.ts (secret check) ──▶ src/bot.
                                                         └─ enforcement pipeline (guards):
                                                            cleanservice → locks → antiflood → filters → #notes
                                                         │
-                                     Upstash Redis ◀────┘ (settings/warns/notes/filters/quota)
+                                     Neon Postgres ◀────┘ (settings/warns/notes/filters/quota)
                                      OpenRouter ◀────── (/ask)
 ```
 

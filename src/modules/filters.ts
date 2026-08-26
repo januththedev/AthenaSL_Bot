@@ -8,7 +8,7 @@ import {
 import type { AthenaBot } from "../bot-types.js";
 
 // ---------------------------------------------------------------------------
-// Per-chat filter cache: avoids a Redis mget on every single group message.
+// Per-chat filter cache: avoids a database query on every single group message.
 // ---------------------------------------------------------------------------
 
 const CACHE_TTL_MS = 60_000;

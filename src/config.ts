@@ -31,11 +31,21 @@ export const config = {
   get webhookSecret(): string | undefined {
     return process.env["WEBHOOK_SECRET"];
   },
-  get upstashUrl(): string {
-    return required("UPSTASH_REDIS_REST_URL");
-  },
-  get upstashToken(): string {
-    return required("UPSTASH_REDIS_REST_TOKEN");
+  /**
+   * Neon Postgres connection string. Vercel's Neon Storage integration
+   * injects POSTGRES_URL automatically; DATABASE_URL works too.
+   */
+  get postgresUrl(): string {
+    const url =
+      process.env["POSTGRES_URL"] ??
+      process.env["DATABASE_URL"] ??
+      process.env["NEON_DATABASE_URL"];
+    if (!url) {
+      throw new Error(
+        "Missing database URL: set POSTGRES_URL (Vercel → Storage → Neon injects it) or DATABASE_URL.",
+      );
+    }
+    return url;
   },
   get openrouterKey(): string {
     return required("OPENROUTER_API_KEY");
@@ -51,7 +61,7 @@ export const config = {
   get askTimeoutMs(): number {
     return optionalInt("ASK_TIMEOUT_MS", 45_000);
   },
-  /** When "1", persist everything to a local JSON file instead of Upstash (dev/testing). */
+  /** When "1", persist everything to a local JSON file instead of Postgres (dev/testing). */
   get useLocalStore(): boolean {
     return process.env["USE_LOCAL_STORE"] === "1";
   },

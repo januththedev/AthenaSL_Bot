@@ -19,7 +19,7 @@ export function extractNoteTags(text: string): string[] {
 export async function replyFirstNoteTag(ctx: AthenaContext, text: string): Promise<void> {
   if (!ctx.chat) return;
   const tags = extractNoteTags(text);
-  // Cap Redis lookups per message to keep REST calls cheap.
+  // Cap database lookups per message to keep things cheap.
   for (const tag of tags.slice(0, 3)) {
     const content = await getNote(ctx.chat.id, tag);
     if (content !== null && content !== undefined && String(content).length > 0) {

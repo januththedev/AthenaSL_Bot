@@ -1,4 +1,4 @@
-import { Redis } from "@upstash/redis";
+import { neon } from "@neondatabase/serverless";
 import fs from "node:fs";
 import path from "node:path";
 import { config } from "./config.js";
@@ -99,47 +99,108 @@ export function mergeSettings(raw: unknown): ChatSettings {
 
 interface StoreBackend {
   get<T = unknown>(key: string): Promise<T | null>;
-  set(key: string, value: unknown): Promise<void>;
+  set(key: string, value: unknown, ttlSeconds?: number): Promise<void>;
   del(key: string): Promise<number>;
   incr(key: string): Promise<number>;
   expire(key: string, seconds: number): Promise<number>;
   keys(pattern: string): Promise<string[]>;
 }
 
-class UpstashBackend implements StoreBackend {
-  private client: Redis;
-  constructor() {
-    this.client = new Redis({ url: config.upstashUrl, token: config.upstashToken });
+class PostgresBackend implements StoreBackend {
+  private readonly sql: ReturnType<typeof neon>;
+  private ready?: Promise<void>;
+
+  constructor(url: string) {
+    this.sql = neon(url);
   }
-  get<T>(key: string) {
-    return this.client.get<T>(key);
+
+  /** Idempotent schema bootstrap, run once per serverless instance. */
+  private init(): Promise<void> {
+    if (!this.ready) {
+      this.ready = (async () => {
+        await this.sql`CREATE TABLE IF NOT EXISTS kv (
+          key text PRIMARY KEY,
+          value jsonb,
+          n bigint NOT NULL DEFAULT 0,
+          expires_at timestamptz
+        )`;
+        // Housekeeping: drop expired rows whenever a fresh instance spins up.
+        await this.sql`DELETE FROM kv WHERE expires_at IS NOT NULL AND expires_at < now()`;
+      })().catch((err) => {
+        this.ready = undefined;
+        throw err;
+      });
+    }
+    return this.ready;
   }
-  set(key: string, value: unknown) {
-    return this.client.set(key, value as never).then(() => undefined);
+
+  async get<T>(key: string): Promise<T | null> {
+    await this.init();
+    const rows = (await this.sql`SELECT value FROM kv
+      WHERE key = ${key} AND (expires_at IS NULL OR expires_at > now())`) as Record<string, unknown>[];
+    const row = rows[0] as { value: T } | undefined;
+    return row ? row.value : null;
   }
-  del(key: string) {
-    return this.client.del(key);
+
+  async set(key: string, value: unknown, ttlSeconds?: number): Promise<void> {
+    await this.init();
+    const exp = ttlSeconds ? new Date(Date.now() + ttlSeconds * 1000) : null;
+    await this.sql`INSERT INTO kv (key, value, expires_at)
+      VALUES (${key}, ${JSON.stringify(value)}::jsonb, ${exp})
+      ON CONFLICT (key) DO UPDATE
+        SET value = EXCLUDED.value, expires_at = EXCLUDED.expires_at`;
   }
-  incr(key: string) {
-    return this.client.incr(key);
+
+  async del(key: string): Promise<number> {
+    await this.init();
+    const rows = (await this.sql`DELETE FROM kv WHERE key = ${key} RETURNING 1`) as unknown[];
+    return rows.length;
   }
-  expire(key: string, seconds: number) {
-    return this.client.expire(key, seconds);
+
+  async incr(key: string): Promise<number> {
+    await this.init();
+    const rows = (await this.sql`INSERT INTO kv (key, n) VALUES (${key}, 1)
+      ON CONFLICT (key) DO UPDATE SET
+        n = CASE WHEN kv.expires_at IS NOT NULL AND kv.expires_at <= now()
+                 THEN 1 ELSE kv.n + 1 END,
+        expires_at = CASE WHEN kv.expires_at IS NOT NULL AND kv.expires_at <= now()
+                          THEN NULL ELSE kv.expires_at END
+      RETURNING n`) as Record<string, unknown>[];
+    const row = rows[0] as { n: number | string } | undefined;
+    return Number(row?.n ?? 0);
   }
-  keys(pattern: string) {
-    return this.client.keys(pattern);
+
+  async expire(key: string, seconds: number): Promise<number> {
+    await this.init();
+    const exp = new Date(Date.now() + seconds * 1000);
+    const rows = (await this.sql`UPDATE kv SET expires_at = ${exp}
+      WHERE key = ${key} AND (expires_at IS NULL OR expires_at > now())
+      RETURNING 1`) as unknown[];
+    return rows.length;
+  }
+
+  async keys(pattern: string): Promise<string[]> {
+    await this.init();
+    // Translate our glob (only * and ? are used) into SQL LIKE.
+    const like = pattern
+      .replace(/[\\%_]/g, (c) => `\\${c}`)
+      .replace(/\*/g, "%")
+      .replace(/\?/g, "_");
+    const rows = (await this.sql`SELECT key FROM kv
+      WHERE key LIKE ${like} AND (expires_at IS NULL OR expires_at > now())`) as Record<string, unknown>[];
+    return rows.map((r) => String(r["key"]));
   }
 }
 
 interface LocalEntry {
   v: unknown;
-  /** Epoch ms after which the entry is treated as missing (mirrors Redis TTLs). */
+  /** Epoch ms after which the entry is treated as missing (mirrors Redis-style TTLs). */
   exp?: number;
 }
 
 /**
  * File-backed backend for local development/testing: same semantics as the
- * Redis subset we use, persisted to a JSON file so data survives restarts.
+ * Key-value subset we need, persisted to a JSON file so data survives restarts.
  */
 export class LocalBackend implements StoreBackend {
   private data = new Map<string, LocalEntry>();
@@ -176,9 +237,11 @@ export class LocalBackend implements StoreBackend {
     return e ? (e.v as T) : null;
   }
 
-  async set(key: string, value: unknown): Promise<void> {
+  async set(key: string, value: unknown, ttlSeconds?: number): Promise<void> {
     const prev = this.data.get(key);
-    this.data.set(key, { v: value, exp: prev?.exp });
+    const exp =
+      ttlSeconds !== undefined ? Date.now() + ttlSeconds * 1000 : prev?.exp;
+    this.data.set(key, { v: value, exp });
     this.save();
   }
 
@@ -223,7 +286,7 @@ function backend(): StoreBackend {
   if (!backendInstance) {
     backendInstance = config.useLocalStore
       ? new LocalBackend(config.localStorePath)
-      : new UpstashBackend();
+      : new PostgresBackend(config.postgresUrl);
   }
   return backendInstance;
 }
@@ -237,8 +300,7 @@ export async function kvGet<T>(key: string): Promise<T | null> {
 }
 
 export async function kvSet(key: string, value: unknown, ttlSeconds?: number): Promise<void> {
-  await backend().set(key, value);
-  if (ttlSeconds) await backend().expire(key, ttlSeconds);
+  await backend().set(key, value, ttlSeconds);
 }
 
 export async function kvDel(key: string): Promise<number> {

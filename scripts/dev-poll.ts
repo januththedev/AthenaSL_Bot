@@ -4,7 +4,7 @@ import { processDueReminders } from "../src/modules/reminders.js";
 /**
  * Local development runner: same bot instance as production, driven by
  * long-polling instead of a webhook. Needs TELEGRAM_BOT_TOKEN and
- * OPENROUTER_API_KEY in .env — plus USE_LOCAL_STORE=1 or the Upstash pair.
+ * OPENROUTER_API_KEY in .env — plus USE_LOCAL_STORE=1 or POSTGRES_URL.
  * Also runs the reminder/exam scheduler every 60s (what Vercel Cron does in prod).
  */
 async function main() {

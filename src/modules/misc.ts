@@ -63,7 +63,7 @@ export function registerMisc(bot: AthenaBot): void {
   bot.command("about", async (ctx) => {
     await ctx.reply(
       `<b>Athena</b> v${BOT_VERSION}\nGroup management + AI assistant.\n` +
-        "TypeScript • grammY • Vercel • Upstash Redis • OpenRouter",
+        "TypeScript • grammY • Vercel • Neon Postgres • OpenRouter",
       { parse_mode: "HTML" },
     );
   });
