@@ -106,7 +106,11 @@ export function registerLockCommands(bot: AthenaBot): void {
     if (!g) return;
     const { valid, invalid } = parseTypes(ctx.match ?? "");
     if (valid.length === 0) {
-      await ctx.reply(`Usage: /lock <type…>\n${LOCK_HELP}`);
+      const notice =
+        invalid.length > 0
+          ? `⚠️ Unknown types: ${invalid.join(", ")}.`
+          : "Usage: /lock <type…>";
+      await ctx.reply(`${notice}\n${LOCK_HELP}`);
       return;
     }
     let added = 0;

@@ -123,62 +123,68 @@ function registerGreetingCommands(bot: AthenaBot, side: GreetingSide): void {
  * the "bots" lock is active.
  */
 export function registerMemberEvents(bot: AthenaBot): void {
-  bot.on("message:new_chat_members", async (ctx) => {
+  // Both handlers call next() so the guards pipeline (cleanservice, etc.)
+  // still runs for service messages.
+  bot.on("message:new_chat_members", async (ctx, next) => {
     const settings = ctx.settings;
-    if (!settings || !ctx.msg) return;
-    const entrants = ctx.msg.new_chat_members;
+    if (settings && ctx.msg) {
+      const entrants = ctx.msg.new_chat_members;
 
-    // "bots" lock: kick newly joined bots immediately.
-    if (settings.locks.includes("bots")) {
-      for (const m of entrants) {
-        if (!m.is_bot) continue;
+      // "bots" lock: kick newly joined bots immediately.
+      if (settings.locks.includes("bots")) {
+        for (const m of entrants) {
+          if (!m.is_bot) continue;
+          try {
+            await bot.api.banChatMember(ctx.chat.id, m.id);
+          } catch (err) {
+            console.error("bot-lock ban failed", err);
+          }
+        }
+      }
+
+      const cfg = settings.welcome;
+      const human = entrants.find((m) => !m.is_bot);
+      if (cfg.enabled && human) {
         try {
-          await bot.api.banChatMember(ctx.chat.id, m.id);
+          const text = await renderGreeting(
+            bot,
+            settings,
+            ctx.chat.id,
+            ctx.chat.title ?? "",
+            cfg.text ?? DEFAULT_WELCOME,
+            human,
+          );
+          await sendFormatted(bot, ctx.chat.id, text);
         } catch (err) {
-          console.error("bot-lock ban failed", err);
+          console.error("welcome failed", err);
         }
       }
     }
-
-    const cfg = settings.welcome;
-    if (!cfg.enabled) return;
-    const human = entrants.find((m) => !m.is_bot);
-    if (!human) return;
-    try {
-      const text = await renderGreeting(
-        bot,
-        settings,
-        ctx.chat.id,
-        ctx.chat.title ?? "",
-        cfg.text ?? DEFAULT_WELCOME,
-        human,
-      );
-      await sendFormatted(bot, ctx.chat.id, text);
-    } catch (err) {
-      console.error("welcome failed", err);
-    }
+    await next();
   });
 
-  bot.on("message:left_chat_member", async (ctx) => {
+  bot.on("message:left_chat_member", async (ctx, next) => {
     const settings = ctx.settings;
-    if (!settings || !ctx.msg) return;
-    const cfg = settings.goodbye;
-    if (!cfg.enabled) return;
-    const leaver = ctx.msg.left_chat_member;
-    if (!leaver || leaver.is_bot || leaver.id === ctx.me.id) return;
-    try {
-      const text = await renderGreeting(
-        bot,
-        settings,
-        ctx.chat.id,
-        ctx.chat.title ?? "",
-        cfg.text ?? DEFAULT_GOODBYE,
-        leaver,
-      );
-      await sendFormatted(bot, ctx.chat.id, text);
-    } catch (err) {
-      console.error("goodbye failed", err);
+    if (settings && ctx.msg) {
+      const cfg = settings.goodbye;
+      const leaver = ctx.msg.left_chat_member;
+      if (cfg.enabled && leaver && !leaver.is_bot && leaver.id !== ctx.me.id) {
+        try {
+          const text = await renderGreeting(
+            bot,
+            settings,
+            ctx.chat.id,
+            ctx.chat.title ?? "",
+            cfg.text ?? DEFAULT_GOODBYE,
+            leaver,
+          );
+          await sendFormatted(bot, ctx.chat.id, text);
+        } catch (err) {
+          console.error("goodbye failed", err);
+        }
+      }
     }
+    await next();
   });
 }
 
