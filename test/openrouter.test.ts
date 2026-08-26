@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { askOpenRouter, chunkText, isDegenerate, pickFreeModels, resetFreeModelCache, stripThinking } from "../src/openrouter.js";
+import { askOpenRouter, chunkText, isDegenerate, pickFreeModels, resetFreeModelCache, stripThinking, SYSTEM_PROMPT } from "../src/openrouter.js";
 
 process.env["OPENROUTER_API_KEY"] = "test-key";
 process.env["OPENROUTER_MODEL"] = "test/model:free";
@@ -73,6 +73,15 @@ describe("pickFreeModels", () => {
 
   it("respects the limit", () => {
     expect(pickFreeModels(catalog, [], 1).length).toBe(1);
+  });
+});
+
+describe("SYSTEM_PROMPT", () => {
+  it("locks in language matching, Singlish detection and beginner style", () => {
+    expect(SYSTEM_PROMPT).toContain("SAME language");
+    expect(SYSTEM_PROMPT).toContain("ENGLISH letters");
+    expect(SYSTEM_PROMPT).toContain("Never switch languages unless");
+    expect(SYSTEM_PROMPT).toContain("complete beginner");
   });
 });
 
