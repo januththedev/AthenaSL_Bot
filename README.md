@@ -20,7 +20,7 @@ TypeScript · grammY · Vercel serverless · Neon Postgres · OpenRouter.
 - `/summarize` (reply) — summarize a long message or a linked article
 - `/recap` — AI recap of today's chat • `/resources` — auto-indexed links shared in the group
 - `/draw <description>` — AI image generation via [pollinations.ai](https://pollinations.ai) (free, no key)
-- `/artifact <description>` — Claude-style artifacts for Telegram: the AI authors an **SVG image** (rendered to PNG in-chat, SVG source attached), a **runnable code file**, or a **Markdown doc**, delivered as a download. Shares the `/ask` daily quota.
+- `/chart <question or data>` — **precise, data-accurate charts**: the AI extracts the real values from your question, and code renders the chart exactly (bar/line/pie, true labels & numbers — never a hallucinated drawing). `/ask` automatically attaches a chart when an answer is numeric. Shares the `/ask` daily quota.
 
 **Group management (Rose-style)**
 - Welcome & goodbye messages with fillings `{first} {last} {fullname} {username} {id} {chatname} {count}`

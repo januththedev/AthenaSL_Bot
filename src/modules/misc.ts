@@ -16,9 +16,10 @@ export const HELP_TEXT = `🤖 <b>Athena — commands</b>
 /summarize (reply) — summarize a long message or a link
 /recap — AI recap of today's chat • /resources — links shared
 
-<b>Images &amp; artifacts</b>
+<b>Images &amp; charts</b>
 /draw &lt;description&gt; — AI-generated image (pollinations.ai)
-/artifact &lt;description&gt; — AI builds an SVG image, code file, or Markdown doc and sends it as a file
+/chart &lt;question or data&gt; — precise, data-accurate chart (bar/line/pie) built from real values
+/ask also attaches a chart automatically when the answer is numeric
 
 <b>Moderation (admins)</b>
 /warn [reason] — warn (reply) • /warnings • /resetwarn

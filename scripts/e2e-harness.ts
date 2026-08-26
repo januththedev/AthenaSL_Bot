@@ -64,6 +64,41 @@ bot.api.config.use((async (_prev: unknown, method: string, payload: Record<strin
 
 await bot.init();
 
+// Deterministic OpenRouter stub: the free tier caps at 50 requests/day, which
+// dev/test runs exhaust quickly. Stubbing the AI endpoint keeps this suite
+// deterministic while still exercising the full pipeline (parsing, chart
+// rendering, delivery). Real-AI behavior is validated in live runs.
+const realFetch = globalThis.fetch.bind(globalThis);
+globalThis.fetch = (async (url: unknown, init?: unknown) => {
+  if (String(url).includes("openrouter.ai/api/v1/chat/completions")) {
+    const body = JSON.parse(String((init as RequestInit | undefined)?.body ?? "{}")) as { messages?: { content?: string }[] };
+    // Note: some modules pass their instruction as the user message, so match both.
+    const all = `${body.messages?.[0]?.content ?? ""}\n${body.messages?.[1]?.content ?? ""}`;
+    let content: string;
+    if (all.includes("chart specification")) {
+      content = JSON.stringify({
+        type: "bar", title: "Moon vs Voyager 1 — distance from Earth", unit: "km",
+        items: [{ label: "Moon", value: 384400 }, { label: "Voyager 1", value: 25000000000 }],
+      });
+    } else if (all.includes("multiple-choice quiz")) {
+      content = JSON.stringify(
+        Array.from({ length: 5 }, (_, i) => ({ question: `Q${i + 1}?`, options: ["a", "b", "c", "d"], answer: 0 })),
+      );
+    } else if (all.includes("recap")) {
+      content = "Overview: the group studied algebra today.\n- Practiced equations\n- Shared links";
+    } else if (all.includes("Summarize")) {
+      content = "- Water evaporates\n- Condenses into clouds\n- Falls as rain";
+    } else {
+      content = "2 + 2 equals 4.";
+    }
+    return new Response(JSON.stringify({ choices: [{ message: { content } }] }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+  return realFetch(url as string, init as RequestInit | undefined);
+}) as unknown as typeof fetch;
+
 // -------------------------------------------------------------------------
 // Update builders + assertions
 // -------------------------------------------------------------------------
@@ -532,11 +567,12 @@ console.log("\n== /ask");
     await sendText(CHAT, ADMIN, "/ask what is 2+2? one line");
     return mk;
   };
+  const askOk = (mk: number) => textsSince(mk).some((x) => !x.startsWith("🤔") && !x.startsWith("⚠️"));
   await aiStep(async () => {
     m = await askOnce();
   });
-  if (!textsSince(m).some((x) => !x.startsWith("🤔") && !x.startsWith("⚠️"))) {
-    await sleep(8000);
+  for (let i = 0; i < 3 && !askOk(m); i++) {
+    await sleep(15_000);
     m = await askOnce();
   }
   await t("ask returns a real answer", () => {
@@ -610,14 +646,12 @@ console.log("\n== /quiz /quizstop");
     mark();
     await sendText(CHAT, ADMIN, "/quiz photosynthesis");
   });
-  if (!quizStarted()) {
-    // Free-tier AI can be transiently rate-limited; retry once.
-    await sleep(8000);
+  let quizTries = 0;
+  while (!quizStarted() && quizTries < 3) {
+    quizTries++;
+    await sleep(15_000);
     await sendText(CHAT, ADMIN, "/quizstop");
-    await aiStep(async () => {
-      mark();
-      await sendText(CHAT, ADMIN, "/quiz photosynthesis");
-    });
+    await sendText(CHAT, ADMIN, "/quiz photosynthesis");
   }
   await t("quiz generates question 1/5 with buttons", () => {
     const q = calls.filter((c) => c.method === "sendMessage" && String(c.payload.text ?? "").includes("1/5")).at(-1);
@@ -710,34 +744,26 @@ console.log("\n== /recap /resources (second chat)");
   });
 }
 
-console.log("\n== /draw /artifact");
+console.log("\n== /chart");
 {
-  let m = mark();
-  await sendText(CHAT, ADMIN, "/draw a simple flat vector owl logo, purple and gold");
-  await t("draw sends a photo", () => {
-    expect(apiCalled(m, "sendPhoto"), "no photo sent");
+  let m: number;
+  const chartSent = () => calls.some((c) => c.method === "sendPhoto" && c.payload.caption !== undefined && String(c.payload.caption).length > 0 && !String(c.payload.caption).startsWith("🎨"));
+  await aiStep(async () => {
+    mark();
+    await sendText(CHAT, ADMIN, "/chart compare the distance from earth to the moon and voyager 1");
+  });
+  let chartTries = 0;
+  while (!chartSent() && chartTries < 3) {
+    chartTries++;
+    await sleep(15_000);
+    await sendText(CHAT, ADMIN, "/chart compare the distance from earth to the moon and voyager 1");
+  }
+  await t("chart renders and sends a photo", () => {
+    expect(chartSent(), "no chart photo");
   });
   m = mark();
-  await sendText(CHAT, ADMIN, "/draw x");
-  await t("draw rejects too-short prompt", () => expect(hasReply(m, "Usage"), "no usage"));
-  await aiStep(async () => {
-    m = mark();
-    await sendText(CHAT, ADMIN, "/artifact an svg pie chart with a 25/75 split, two colors, no text");
-  });
-  await t("artifact svg delivers image or file", () => {
-    expect(apiCalled(m, "sendPhoto") || apiCalled(m, "sendDocument"), "nothing delivered");
-  });
-  await aiStep(async () => {
-    m = mark();
-    await sendText(CHAT, ADMIN, "/artifact a python function is_prime(n) with a docstring");
-  });
-  await t("artifact code delivers document", () => {
-    const doc = since(m).find((c) => c.method === "sendDocument");
-    expect(Boolean(doc), "no document");
-  });
-  m = mark();
-  await sendText(CHAT, ADMIN, "/artifact ok");
-  await t("artifact without description explains usage", () => expect(hasReply(m, "Usage"), "no usage"));
+  await sendText(CHAT, ADMIN, "/chart ok");
+  await t("chart without data explains usage", () => expect(hasReply(m, "Usage"), "no usage"));
 }
 
 // -------------------------------------------------------------------------

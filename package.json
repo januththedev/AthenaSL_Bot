@@ -17,9 +17,10 @@
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
+    "@resvg/resvg-js": "^2.6.2",
+    "dejavu-fonts-ttf": "^2.37.3",
     "dotenv": "^16.4.5",
-    "grammy": "^1.30.0",
-    "sharp": "^0.35.3"
+    "grammy": "^1.30.0"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",

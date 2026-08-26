@@ -4,9 +4,19 @@ import { askOpenRouter, chunkText } from "../openrouter.js";
 import { incrAskUsage } from "../store.js";
 import { isAdmin } from "../middleware/auth.js";
 import { personaSystemSuffix } from "./persona.js";
+import { extractChartMarker } from "./charts.js";
+import { renderChartPng } from "./charts.js";
+import { InputFile } from "grammy";
 import { SYSTEM_PROMPT as SYSTEM_BASE } from "../openrouter.js";
 
 const USAGE = "Usage: /ask <question> — or reply to a message with /ask.";
+
+/** Appended so numeric answers can end with a CHART:{...} spec we render exactly. */
+const CHART_INSTRUCTION =
+
+  "\n\nPRECISE CHARTS: If (and only if) the answer involves numeric comparisons, trends, proportions or rankings, append ONE final line in exactly this format:\n" +
+  "CHART:{\"type\":\"bar|line|pie\",\"title\":\"...\",\"unit\":\"...\",\"items\":[{\"label\":\"...\",\"value\":123}]}\n" +
+  "Use correct real-world values. 2-8 items. Nothing after that line. Omit it entirely when a chart wouldn't help.";
 
 export function registerAsk(bot: AthenaBot): void {
   bot.command("ask", async (ctx) => {
@@ -45,11 +55,19 @@ export function registerAsk(bot: AthenaBot): void {
     }
 
     const thinking = await ctx.reply("🤔 Thinking…");
-    const system = SYSTEM_BASE + personaSystemSuffix(ctx.settings?.persona);
+    const system = SYSTEM_BASE + CHART_INSTRUCTION + personaSystemSuffix(ctx.settings?.persona);
     const result = await askOpenRouter(question, system);
-    const answer = result.ok ? result.text : `⚠️ ${result.reason}`;
+    if (!result.ok) {
+      try {
+        await ctx.api.editMessageText(ctx.chat.id, thinking.message_id, `⚠️ ${result.reason}`);
+      } catch {
+        await ctx.reply(`⚠️ ${result.reason}`);
+      }
+      return;
+    }
 
-    const parts = chunkText(answer);
+    const { answer, spec } = extractChartMarker(result.text);
+    const parts = chunkText(answer.length > 0 ? answer : result.text);
     const first = parts[0] ?? "";
     try {
       await ctx.api.editMessageText(ctx.chat.id, thinking.message_id, first);
@@ -58,6 +76,16 @@ export function registerAsk(bot: AthenaBot): void {
     }
     for (const part of parts.slice(1)) {
       await ctx.reply(part);
+    }
+    if (spec) {
+      try {
+        const png = await renderChartPng(spec);
+        await ctx.replyWithPhoto(new InputFile(png, "chart.png"), {
+          caption: `📊 ${spec.title}`,
+        });
+      } catch (err) {
+        console.error("auto-chart render failed", err);
+      }
     }
   });
 }

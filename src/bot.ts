@@ -22,7 +22,7 @@ import { registerQuiz } from "./modules/quiz.js";
 import { registerSummarize } from "./modules/summarize.js";
 import { registerRecap } from "./modules/recap.js";
 import { registerDraw } from "./modules/images.js";
-import { registerArtifacts } from "./modules/artifacts.js";
+import { registerChart } from "./modules/charts.js";
 
 let cached: AthenaBot | undefined;
 
@@ -49,7 +49,7 @@ export function getBot(): AthenaBot {
   registerSummarize(bot);
   registerRecap(bot);
   registerDraw(bot);
-  registerArtifacts(bot);
+  registerChart(bot);
 
   registerRules(bot);
   registerLockCommands(bot);
