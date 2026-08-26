@@ -21,6 +21,9 @@ export function routeDecision(question: string): Route {
   return "auto";
 }
 
+/** Tolerant marker matcher: "ROUTE: python", "route:web.", extra spaces all match. */
+export const ROUTE_MARKER = /^\s*ROUTE:\s*(web|python)\b[.\s]*$/im;
+
 /** Appended to the /ask system prompt so the model can request a reroute. */
 export const ROUTE_INSTRUCTION =
 

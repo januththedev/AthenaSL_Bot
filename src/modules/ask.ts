@@ -8,7 +8,7 @@ import { chunkText } from "../utils.js";
 import { personaSystemSuffix } from "./persona.js";
 import { extractChartMarker } from "./charts.js";
 import { renderChartPng } from "./charts.js";
-import { routeDecision, ROUTE_INSTRUCTION, PYTHON_GROUNDING, detectLanguage, languageAddendum } from "./router.js";
+import { routeDecision, ROUTE_INSTRUCTION, ROUTE_MARKER, PYTHON_GROUNDING, detectLanguage, languageAddendum } from "./router.js";
 import { askGroq } from "./groq.js";
 import { InputFile } from "grammy";
 import { SYSTEM_PROMPT as SYSTEM_BASE } from "../openrouter.js";
@@ -72,29 +72,63 @@ export function registerAsk(bot: AthenaBot): void {
 
     let result: AskResult;
     if (routed) {
+      // The route is already decided — the fallback prompt must NOT contain
+      // the ROUTE instruction, or the model answers "ROUTE:python" instead
+      // of actually answering.
       const grounded =
         route === "python"
           ? SYSTEM_BASE + (langNote ?? "") + PYTHON_GROUNDING + persona
           : SYSTEM_BASE + (langNote ?? "") + persona;
       result = await askGroq(question, grounded, config.groqCompoundModel);
-      if (!result.ok) result = await askOpenRouter(question, system);
+      if (!result.ok) {
+        console.error("groq compound failed:", config.groqCompoundModel, result.reason);
+        result = await askGroq(question, grounded, "compound-beta");
+      }
+      if (!result.ok) {
+        console.error("groq compound-beta also failed:", result.reason);
+        result = await askOpenRouter(question, grounded);
+      }
     } else {
       result = await askOpenRouter(question, system);
       if (result.ok) {
         // The model itself may request a reroute to tools it doesn't have.
-        const marker = /^ROUTE:(web|python)\s*$/im.exec(result.text);
+        const marker = ROUTE_MARKER.exec(result.text);
         if (marker) {
-          const groqResult = await askGroq(
+          let groqResult = await askGroq(
             question,
             SYSTEM_BASE + (langNote ?? "") + persona,
             config.groqCompoundModel,
           );
-          if (groqResult.ok) result = groqResult;
-          else {
-            result = { ok: true, text: result.text.replace(marker[0], "").trim() };
+          if (!groqResult.ok) {
+            groqResult = await askGroq(
+              question,
+              SYSTEM_BASE + (langNote ?? "") + persona,
+              "compound-beta",
+            );
+          }
+          if (groqResult.ok) {
+            result = groqResult;
+          } else {
+            const stripped = result.text.replace(ROUTE_MARKER, "").trim();
+            if (stripped.length > 0) {
+              result = { ok: true, text: stripped };
+            } else {
+              // Nothing usable without tools — re-ask without the ROUTE
+              // instruction so the model answers from its knowledge.
+              result = await askOpenRouter(
+                question,
+                SYSTEM_BASE + CHART_INSTRUCTION + persona + (langNote ?? ""),
+              );
+            }
           }
         }
       }
+    }
+
+    // Final safety: never let a routing marker reach the chat.
+    if (result.ok) {
+      const cleaned = result.text.replace(ROUTE_MARKER, "").trim();
+      if (cleaned.length > 0) result = { ok: true, text: cleaned };
     }
 
     if (!result.ok) {

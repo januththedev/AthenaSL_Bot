@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { routeDecision, ROUTE_INSTRUCTION, PYTHON_GROUNDING, detectLanguage, languageAddendum } from "../src/modules/router.js";
+import { routeDecision, ROUTE_INSTRUCTION, ROUTE_MARKER, PYTHON_GROUNDING, detectLanguage, languageAddendum } from "../src/modules/router.js";
 
 describe("routeDecision", () => {
   it("routes computation questions to python", () => {
@@ -35,6 +35,14 @@ describe("routeDecision", () => {
   it("exposes the ROUTE instruction for the system prompt", () => {
     expect(ROUTE_INSTRUCTION).toContain("ROUTE:web");
     expect(ROUTE_INSTRUCTION).toContain("ROUTE:python");
+  });
+
+  it("matches routing markers in every format models actually emit", () => {
+    expect(ROUTE_MARKER.test("ROUTE:python")).toBe(true);
+    expect(ROUTE_MARKER.test("ROUTE: python")).toBe(true);
+    expect(ROUTE_MARKER.test("route:web.")).toBe(true);
+    expect(ROUTE_MARKER.test("  ROUTE:python  \n")).toBe(true);
+    expect(ROUTE_MARKER.test("I think ROUTE:web is needed")).toBe(false);
   });
 
   it("grounds python-routed answers in real physics", () => {
