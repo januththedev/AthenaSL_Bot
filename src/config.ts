@@ -51,7 +51,11 @@ export const config = {
     return required("OPENROUTER_API_KEY");
   },
   get openrouterModel(): string {
-    return optional("OPENROUTER_MODEL", "nvidia/nemotron-3.5-lightning:free");
+    return optional("OPENROUTER_MODEL", "minimax/minimax-m2.7:free");
+  },
+  /** Tried automatically when the primary model returns junk or is rate-limited. */
+  get openrouterFallback(): string {
+    return optional("OPENROUTER_MODEL_FALLBACK", "google/gemma-4-31b-it:free");
   },
   /** Per-user daily /ask limit in groups; admins are exempt. */
   get askDailyLimit(): number {

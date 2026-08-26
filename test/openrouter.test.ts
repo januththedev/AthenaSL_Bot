@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { askOpenRouter, chunkText, stripThinking } from "../src/openrouter.js";
+import { askOpenRouter, chunkText, isDegenerate, stripThinking } from "../src/openrouter.js";
 
 process.env["OPENROUTER_API_KEY"] = "test-key";
 process.env["OPENROUTER_MODEL"] = "test/model:free";
+delete process.env["OPENROUTER_MODEL_FALLBACK"];
 
 describe("stripThinking", () => {
   it("removes complete think blocks", () => {
@@ -31,6 +32,20 @@ describe("chunkText", () => {
     const parts = chunkText(text, 80);
     expect(parts.length).toBe(2);
     expect(parts[0]).toBe(half);
+  });
+});
+
+describe("isDegenerate", () => {
+  it("flags empty output and leaked reasoning/safety fragments", () => {
+    expect(isDegenerate("")).toBe(true);
+    expect(isDegenerate("User Safety: safe")).toBe(true);
+    expect(isDegenerate("We need to answer: the moon is 384,400 km away")).toBe(true);
+    expect(isDegenerate("Okay, so the moon is about 384,400 km away")).toBe(true);
+  });
+
+  it("accepts normal direct answers", () => {
+    expect(isDegenerate("The Moon is about 384,400 km away on average.")).toBe(false);
+    expect(isDegenerate("42")).toBe(false);
   });
 });
 
@@ -64,7 +79,31 @@ describe("askOpenRouter", () => {
     if (res.ok) expect(res.text).toBe("Final answer.");
   });
 
-  it("surfaces empty completions as failures", async () => {
+  it("retries the fallback model when the primary returns junk", async () => {
+    const junk = new Response(
+      JSON.stringify({ choices: [{ message: { content: "User Safety: safe" } }] }),
+      { status: 200 },
+    );
+    const good = new Response(
+      JSON.stringify({ choices: [{ message: { content: "The Moon is 384,400 km away." } }] }),
+      { status: 200 },
+    );
+    const calls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init?: RequestInit) => {
+        const body = JSON.parse(String(init?.body)) as { model: string };
+        calls.push(body.model);
+        return calls.length === 1 ? junk : good;
+      }),
+    );
+    const res = await askOpenRouter("q");
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.text).toContain("384,400");
+    expect(calls.length).toBe(2);
+  });
+
+  it("fails with a clear reason when every model returns junk", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>
@@ -73,5 +112,6 @@ describe("askOpenRouter", () => {
     );
     const res = await askOpenRouter("q");
     expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.reason).toContain("unusable");
   });
 });

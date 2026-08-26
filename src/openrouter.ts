@@ -70,10 +70,21 @@ function failureReason(status: number, bodyMessage?: string): string {
   }
 }
 
-export async function askOpenRouter(
+/**
+ * Detects unusable model output: empty text, safety-check fragments, or
+ * leaked chain-of-thought openers (seen on free reasoning models). Pure.
+ */
+export function isDegenerate(text: string): boolean {
+  const t = text.trim();
+  if (t.length === 0) return true;
+  return /^(user safety\s*:|safety\s*:|we need to\b|okay,\s|let me\b|let's\b|first,)/i.test(t);
+}
+
+async function callModel(
+  model: string,
   question: string,
-  system: string = SYSTEM_PROMPT,
-): Promise<AskResult> {
+  system: string,
+): Promise<AskResult | "retry"> {
   let res: Response;
   try {
     res = await fetch(ENDPOINT, {
@@ -84,7 +95,7 @@ export async function askOpenRouter(
         "X-Title": "Athena Telegram Bot",
       },
       body: JSON.stringify({
-        model: config.openrouterModel,
+        model,
         messages: [
           { role: "system", content: system },
           { role: "user", content: question },
@@ -94,7 +105,7 @@ export async function askOpenRouter(
     });
   } catch (err) {
     console.error("openrouter fetch failed", err);
-    return { ok: false, reason: "Could not reach OpenRouter (network timeout?). Try again." };
+    return "retry";
   }
 
   let body: ChatCompletionResponse | undefined;
@@ -105,13 +116,29 @@ export async function askOpenRouter(
   }
 
   if (!res.ok) {
+    // Rate limits / upstream flakes are worth retrying on the fallback model;
+    // key and credit problems are not model-specific, so fail immediately.
+    if (res.status === 429 || res.status >= 500) return "retry";
     return { ok: false, reason: failureReason(res.status, body?.error?.message) };
   }
 
   const raw = body?.choices?.[0]?.message?.content ?? "";
   const text = stripThinking(raw);
-  if (text.length === 0) {
-    return { ok: false, reason: `The model (${config.openrouterModel}) returned an empty answer.` };
-  }
+  if (isDegenerate(text)) return "retry";
   return { ok: true, text };
+}
+
+export async function askOpenRouter(
+  question: string,
+  system: string = SYSTEM_PROMPT,
+): Promise<AskResult> {
+  const models = [...new Set([config.openrouterModel, config.openrouterFallback])];
+  for (const model of models) {
+    const result = await callModel(model, question, system);
+    if (result !== "retry") return result;
+  }
+  return {
+    ok: false,
+    reason: `The AI models (${models.join(", ")}) are rate-limited or returned unusable answers right now. Try again in a minute — or set OPENROUTER_MODEL to another free model from openrouter.ai/models?max_price=0.`,
+  };
 }
