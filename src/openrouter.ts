@@ -83,6 +83,7 @@ export function isDegenerate(text: string): boolean {
 type Attempt = { done: true; result: AskResult } | { done: false };
 
 async function callModel(
+  key: string,
   model: string,
   question: string,
   system: string,
@@ -92,7 +93,7 @@ async function callModel(
     res = await fetch(ENDPOINT, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${config.openrouterKey}`,
+        Authorization: `Bearer ${key}`,
         "Content-Type": "application/json",
         "X-Title": "Athena Telegram Bot",
       },
@@ -197,13 +198,18 @@ export async function askOpenRouter(
   question: string,
   system: string = SYSTEM_PROMPT,
 ): Promise<AskResult> {
+  const keys = config.openrouterKeys;
   const primary = [...new Set([config.openrouterModel, config.openrouterFallback])];
   const extras = await discoverFreeModels(primary);
   const models = [...primary, ...extras].slice(0, 6);
 
-  for (const model of models) {
-    const attempt = await callModel(model, question, system);
-    if (attempt.done) return attempt.result;
+  // Key-major rotation: an exhausted key fails fast across the model chain,
+  // then the next key gets the full chain. Pollinations stays as the deep fallback.
+  for (const key of keys) {
+    for (const model of models) {
+      const attempt = await callModel(key, model, question, system);
+      if (attempt.done) return attempt.result;
+    }
   }
 
   // Deep fallback: Pollinations' keyless text API — an independent provider,

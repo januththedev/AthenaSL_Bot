@@ -50,6 +50,27 @@ export const config = {
   get openrouterKey(): string {
     return required("OPENROUTER_API_KEY");
   },
+  /**
+   * All OpenRouter keys, in priority order: OPENROUTER_API_KEYS (comma or
+   * whitespace separated) first, then the single OPENROUTER_API_KEY. When one
+   * key is rate-limited the bot rotates to the next.
+   */
+  get openrouterKeys(): string[] {
+    const list: string[] = [];
+    const multi = process.env["OPENROUTER_API_KEYS"];
+    if (multi) {
+      for (const k of multi.split(/[\s,]+/)) {
+        if (k.trim()) list.push(k.trim());
+      }
+    }
+    const single = process.env["OPENROUTER_API_KEY"];
+    if (single && single.trim()) list.push(single.trim());
+    const unique = [...new Set(list)];
+    if (unique.length === 0) {
+      throw new Error("No OpenRouter API keys: set OPENROUTER_API_KEY or OPENROUTER_API_KEYS (comma-separated).");
+    }
+    return unique;
+  },
   get openrouterModel(): string {
     return optional("OPENROUTER_MODEL", "minimax/minimax-m2.7:free");
   },

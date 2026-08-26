@@ -105,7 +105,8 @@ Every request is authenticated via the webhook secret token header — requests 
 | `TELEGRAM_BOT_TOKEN` | ✅ | From @BotFather |
 | `WEBHOOK_SECRET` | prod | Secret sent back on every webhook call |
 | `POSTGRES_URL` | ✅ prod | Neon Postgres — injected automatically by Vercel's Storage → Neon integration |
-| `OPENROUTER_API_KEY` | ✅ | AI answers |
+| `OPENROUTER_API_KEY` | ✅ | Primary AI key |
+| `OPENROUTER_API_KEYS` | – | Extra OpenRouter keys, comma-separated — rotated automatically when one is rate-limited (each key has its own daily quota) |
 | `OPENROUTER_MODEL` | – | Preferred free model. Free slugs rotate often — browse [openrouter.ai/models?max_price=0](https://openrouter.ai/models?max_price=0). Default: `minimax/minimax-m2.7:free` |
 | `OPENROUTER_MODEL_FALLBACK` | – | Tried automatically when the primary is rate-limited or returns junk |
 | `POLLINATIONS_MODEL` | – | Image model for /draw (default `flux`) |
@@ -118,14 +119,14 @@ Every request is authenticated via the webhook secret token header — requests 
 
 ### Always-free model chain
 
-The bot only ever uses **free** AI, tried in this order: `OPENROUTER_MODEL` →
-`OPENROUTER_MODEL_FALLBACK` → up to 4 more `:free` models **auto-discovered** from
-OpenRouter's public catalog (cached 1 h, preferring known-good families) → and as a
-final safety net, the **keyless Pollinations text API** — an independent provider,
-so OpenRouter caps or outages don't take the bot's AI offline. Junk answers
-("User Safety: safe", leaked reasoning) and per-model rate limits are skipped
-automatically. Note the ~50/day OpenRouter free cap is **account-level** (raised to
-1,000/day with credits) — model rotation spreads load but can't bypass it.
+The bot only ever uses **free** AI. It rotates across **all your keys** (`OPENROUTER_API_KEYS`,
+comma-separated) and for each key walks: `OPENROUTER_MODEL` → `OPENROUTER_MODEL_FALLBACK` →
+up to 4 more `:free` models **auto-discovered** from OpenRouter's public catalog (cached 1 h,
+preferring known-good families) → and as the final safety net, the **keyless Pollinations
+text API** — an independent provider, so OpenRouter caps or outages don't take the bot's AI
+offline. Junk answers ("User Safety: safe", leaked reasoning) and per-model rate limits are
+skipped automatically. Note OpenRouter's free cap is **per key** (~50/day, 1,000/day with
+credits) — N keys ≈ N × quota.
 
 ## Architecture
 

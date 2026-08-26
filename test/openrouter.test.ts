@@ -121,6 +121,30 @@ describe("askOpenRouter", () => {
     if (res.ok) expect(res.text).toBe("Backup answer.");
   });
 
+  it("rotates to the next API key when one is rate-limited", async () => {
+    process.env["OPENROUTER_API_KEYS"] = "sk-key-a,sk-key-b";
+    resetFreeModelCache();
+    const tried: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: unknown, init?: unknown) => {
+        const u = String(url);
+        if (u.includes("/models")) return new Response(JSON.stringify({ data: [] }), { status: 200 });
+        const auth = String((init as RequestInit).headers && (init as RequestInit).headers instanceof Object ? JSON.stringify((init as RequestInit).headers) : "");
+        const body = JSON.parse(String((init as RequestInit).body)) as { model: string };
+        const key = auth.includes("sk-key-a") ? "a" : "b";
+        tried.push(`${key}:${body.model}`);
+        if (key === "a") return new Response(JSON.stringify({ error: { message: "cap" } }), { status: 429 });
+        return new Response(JSON.stringify({ choices: [{ message: { content: "Key B answer." } }] }), { status: 200 });
+      }),
+    );
+    const res = await askOpenRouter("q");
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.text).toBe("Key B answer.");
+    expect(tried.some((t) => t.startsWith("b:"))).toBe(true);
+    delete process.env["OPENROUTER_API_KEYS"];
+  });
+
   it("explains when both providers fail", async () => {
     vi.stubGlobal(
       "fetch",
