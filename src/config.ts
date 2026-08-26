@@ -51,6 +51,13 @@ export const config = {
   get askTimeoutMs(): number {
     return optionalInt("ASK_TIMEOUT_MS", 45_000);
   },
+  /** When "1", persist everything to a local JSON file instead of Upstash (dev/testing). */
+  get useLocalStore(): boolean {
+    return process.env["USE_LOCAL_STORE"] === "1";
+  },
+  get localStorePath(): string {
+    return optional("LOCAL_STORE_PATH", "data/dev-store.json");
+  },
 };
 
 export const BOT_VERSION = "1.0.0";

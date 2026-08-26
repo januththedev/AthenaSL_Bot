@@ -12,7 +12,8 @@
     "test": "vitest run",
     "dev": "tsx scripts/dev-poll.ts",
     "set-webhook": "tsx scripts/set-webhook.ts",
-    "del-webhook": "tsx scripts/set-webhook.ts --delete"
+    "del-webhook": "tsx scripts/set-webhook.ts --delete",
+    "set-commands": "tsx scripts/set-commands.ts"
   },
   "dependencies": {
     "@upstash/redis": "^1.34.3",
