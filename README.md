@@ -117,16 +117,21 @@ Every request is authenticated via the webhook secret token header — requests 
 > Free OpenRouter keys allow ~50 requests/day unless you've purchased ≥10 credits
 > (then 1000/day). The per-user quota protects your key from being drained.
 
-### Always-free model chain
+### Always-free, auto-routed AI chain
 
-The bot only ever uses **free** AI. It rotates across **all your keys** (`OPENROUTER_API_KEYS`,
-comma-separated) and for each key walks: `OPENROUTER_MODEL` → `OPENROUTER_MODEL_FALLBACK` →
-up to 4 more `:free` models **auto-discovered** from OpenRouter's public catalog (cached 1 h,
-preferring known-good families) → and as the final safety net, the **keyless Pollinations
-text API** — an independent provider, so OpenRouter caps or outages don't take the bot's AI
-offline. Junk answers ("User Safety: safe", leaked reasoning) and per-model rate limits are
-skipped automatically. Note OpenRouter's free cap is **per key** (~50/day, 1,000/day with
-credits) — N keys ≈ N × quota.
+`/ask` is the single entry point. Every prompt is **auto-routed**:
+
+- Needs fresh web facts or exact computation → **Groq compound model** (built-in web search + python code execution)
+- Numeric comparisons/trends in the answer → a precise chart is rendered and attached automatically
+- Everything else → the always-free OpenRouter chain: your keys (`OPENROUTER_API_KEY`,
+  `OPENROUTER_API_KEY_2.._4`, rotated when one is rate-limited or rejected) × free models
+  (primary → fallback → up to 4 auto-discovered `:free` models, cached 1 h) → keyless
+  Pollinations text API as the final safety net.
+
+The model itself can also request a reroute (`ROUTE:web` / `ROUTE:python`) mid-answer.
+Junk answers ("User Safety: safe", leaked reasoning) are filtered everywhere.
+Note OpenRouter's free cap (~50/day) is per key — N keys ≈ N × quota; credits raise
+a key to 1,000/day.
 
 ## Architecture
 

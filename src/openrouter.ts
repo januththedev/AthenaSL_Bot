@@ -1,4 +1,8 @@
 import { config } from "./config.js";
+import { askGroq } from "./modules/groq.js";
+import { chunkText, isDegenerate, stripThinking } from "./utils.js";
+
+export { chunkText, isDegenerate, stripThinking };
 
 const ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 
@@ -29,34 +33,6 @@ interface ChatCompletionResponse {
   error?: { message?: string };
 }
 
-/** Remove <think>…</think> reasoning blocks some free models emit before answering. Pure. */
-export function stripThinking(text: string): string {
-  let t = text.replace(/<think>[\s\S]*?<\/think\s*>/gi, "");
-  // Unterminated <think> block (generation cut off): drop everything from the tag onward.
-  const open = t.toLowerCase().indexOf("<think>");
-  if (open !== -1) t = t.slice(0, open);
-  return t.trim();
-}
-
-/**
- * Split long text into Telegram-safe chunks, preferring paragraph/line breaks.
- * Pure.
- */
-export function chunkText(text: string, max = 3900): string[] {
-  if (text.length <= max) return [text];
-  const parts: string[] = [];
-  let rest = text;
-  while (rest.length > max) {
-    const slice = rest.slice(0, max);
-    let cut = Math.max(slice.lastIndexOf("\n\n"), slice.lastIndexOf("\n"), slice.lastIndexOf(" "));
-    if (cut < max * 0.5) cut = max;
-    parts.push(rest.slice(0, cut).trimEnd());
-    rest = rest.slice(cut).trimStart();
-  }
-  if (rest.length > 0) parts.push(rest);
-  return parts;
-}
-
 function failureReason(status: number, bodyMessage?: string): string {
   switch (status) {
     case 401:
@@ -68,16 +44,6 @@ function failureReason(status: number, bodyMessage?: string): string {
     default:
       return `OpenRouter request failed (${status})${bodyMessage ? `: ${bodyMessage}` : "."}`;
   }
-}
-
-/**
- * Detects unusable model output: empty text, safety-check fragments, or
- * leaked chain-of-thought openers (seen on free reasoning models). Pure.
- */
-export function isDegenerate(text: string): boolean {
-  const t = text.trim();
-  if (t.length === 0) return true;
-  return /^(user safety\s*:|safety\s*:|we need to\b|okay,\s|let me\b|let's\b|first,)/i.test(t);
 }
 
 type Attempt =
@@ -227,6 +193,13 @@ export async function askOpenRouter(
     if (nextKey) continue;
   }
 
+  // Groq (fast Llama) sits between the OpenRouter keys and the keyless
+  // Pollinations fallback so a third independent provider guards the chain.
+  if (config.groqKey) {
+    const g = await askGroq(question, system);
+    if (g.ok) return g;
+  }
+
   // Deep fallback: Pollinations' keyless text API — an independent provider,
   // so OpenRouter daily caps or outages don't take the bot's AI offline.
   const backup = await askPollinationsText(question, system);
@@ -235,13 +208,13 @@ export async function askOpenRouter(
   if (sawKeyError) {
     return {
       ok: false,
-      reason: `⚠️ All ${keys.length} configured OpenRouter keys were rejected (401/402). Check OPENROUTER_API_KEY and OPENROUTER_API_KEYS in your deployment settings — one key per line, no extra spaces.`,
+      reason: `⚠️ All ${keys.length} configured OpenRouter keys were rejected (401/402). Check OPENROUTER_API_KEY and OPENROUTER_API_KEY_2.._4 in your deployment settings.`,
     };
   }
   return {
     ok: false,
     reason:
-      "⚠️ Both AI providers (OpenRouter free models and the Pollinations backup) are rate-limited or unreachable right now. Please try again in a few minutes.",
+      "⚠️ All AI providers (OpenRouter, Groq and the Pollinations backup) are rate-limited or unreachable right now. Please try again in a few minutes.",
   };
 }
 

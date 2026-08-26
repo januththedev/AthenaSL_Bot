@@ -51,25 +51,38 @@ export const config = {
     return required("OPENROUTER_API_KEY");
   },
   /**
-   * All OpenRouter keys, in priority order: OPENROUTER_API_KEYS (comma or
-   * whitespace separated) first, then the single OPENROUTER_API_KEY. When one
-   * key is rate-limited the bot rotates to the next.
+   * All OpenRouter keys, tried in order when one is rate-limited/rejected:
+   * OPENROUTER_API_KEY, then OPENROUTER_API_KEY_2 .. OPENROUTER_API_KEY_4.
    */
   get openrouterKeys(): string[] {
-    const list: string[] = [];
-    const multi = process.env["OPENROUTER_API_KEYS"];
-    if (multi) {
-      for (const k of multi.split(/[\s,]+/)) {
-        if (k.trim()) list.push(k.trim());
-      }
+    const candidates = [
+      process.env["OPENROUTER_API_KEY"],
+      process.env["OPENROUTER_API_KEY_1"],
+      process.env["OPENROUTER_API_KEY_2"],
+      process.env["OPENROUTER_API_KEY_3"],
+      process.env["OPENROUTER_API_KEY_4"],
+    ];
+    const keys = [
+      ...new Set(candidates.map((k) => (k ?? "").trim()).filter((k) => k.length > 0)),
+    ];
+    if (keys.length === 0) {
+      throw new Error(
+        "No OpenRouter keys configured: set OPENROUTER_API_KEY (and optionally OPENROUTER_API_KEY_2.._4).",
+      );
     }
-    const single = process.env["OPENROUTER_API_KEY"];
-    if (single && single.trim()) list.push(single.trim());
-    const unique = [...new Set(list)];
-    if (unique.length === 0) {
-      throw new Error("No OpenRouter API keys: set OPENROUTER_API_KEY or OPENROUTER_API_KEYS (comma-separated).");
-    }
-    return unique;
+    return keys;
+  },
+  /** Groq key — optional second provider (web search + python execution via compound models). */
+  get groqKey(): string | undefined {
+    const k = process.env["GROQ_API_KEY"];
+    return k && k.trim().length > 0 ? k.trim() : undefined;
+  },
+  get groqModel(): string {
+    return optional("GROQ_MODEL", "llama-3.3-70b-versatile");
+  },
+  /** Compound model with built-in web search + python code execution. */
+  get groqCompoundModel(): string {
+    return optional("GROQ_COMPOUND_MODEL", "groq/compound");
   },
   get openrouterModel(): string {
     return optional("OPENROUTER_MODEL", "minimax/minimax-m2.7:free");

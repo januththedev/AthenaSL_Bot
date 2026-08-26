@@ -2,7 +2,7 @@ import { config } from "../src/config.js";
 
 /** Registers the command menu users see in Telegram's UI. */
 const commands = [
-  { command: "ask", description: "Ask the AI — or reply to a message with /ask" },
+  { command: "ask", description: "Ask the AI — auto web search & python when needed" },
   { command: "start", description: "Introduce the bot" },
   { command: "help", description: "All commands explained" },
   { command: "remind", description: "Set a reminder (e.g. /remind 1h30m submit lab)" },

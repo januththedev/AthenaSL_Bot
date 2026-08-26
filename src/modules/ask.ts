@@ -1,11 +1,15 @@
 import type { AthenaBot } from "../bot-types.js";
 import { config } from "../config.js";
-import { askOpenRouter, chunkText } from "../openrouter.js";
+import { askOpenRouter } from "../openrouter.js";
+import type { AskResult } from "../openrouter.js";
 import { incrAskUsage } from "../store.js";
 import { isAdmin } from "../middleware/auth.js";
+import { chunkText } from "../utils.js";
 import { personaSystemSuffix } from "./persona.js";
 import { extractChartMarker } from "./charts.js";
 import { renderChartPng } from "./charts.js";
+import { routeDecision, ROUTE_INSTRUCTION } from "./router.js";
+import { askGroq } from "./groq.js";
 import { InputFile } from "grammy";
 import { SYSTEM_PROMPT as SYSTEM_BASE } from "../openrouter.js";
 
@@ -54,9 +58,34 @@ export function registerAsk(bot: AthenaBot): void {
       }
     }
 
-    const thinking = await ctx.reply("🤔 Thinking…");
-    const system = SYSTEM_BASE + CHART_INSTRUCTION + personaSystemSuffix(ctx.settings?.persona);
-    const result = await askOpenRouter(question, system);
+    // Automatic routing: questions needing fresh web facts or exact
+    // computation go straight to Groq's compound model (web search + python
+    // execution); everything else flows through the free OpenRouter chain.
+    const route = routeDecision(question);
+    const routed = route !== "auto";
+    const thinking = await ctx.reply(routed ? "🛰️ Working on it (with tools)…" : "🤔 Thinking…");
+    const persona = personaSystemSuffix(ctx.settings?.persona);
+    const system = SYSTEM_BASE + CHART_INSTRUCTION + ROUTE_INSTRUCTION + persona;
+
+    let result: AskResult;
+    if (routed) {
+      result = await askGroq(question, SYSTEM_BASE + persona, config.groqCompoundModel);
+      if (!result.ok) result = await askOpenRouter(question, system);
+    } else {
+      result = await askOpenRouter(question, system);
+      if (result.ok) {
+        // The model itself may request a reroute to tools it doesn't have.
+        const marker = /^ROUTE:(web|python)\s*$/im.exec(result.text);
+        if (marker) {
+          const groqResult = await askGroq(question, SYSTEM_BASE + persona, config.groqCompoundModel);
+          if (groqResult.ok) result = groqResult;
+          else {
+            result = { ok: true, text: result.text.replace(marker[0], "").trim() };
+          }
+        }
+      }
+    }
+
     if (!result.ok) {
       try {
         await ctx.api.editMessageText(ctx.chat.id, thinking.message_id, `⚠️ ${result.reason}`);

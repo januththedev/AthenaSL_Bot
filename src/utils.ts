@@ -2,6 +2,42 @@ import type { AthenaContext } from "./context.js";
 import type { User } from "grammy/types";
 
 // ---------------------------------------------------------------------------
+// AI text helpers (shared by every provider)
+// ---------------------------------------------------------------------------
+
+/** Remove <think>…</think> reasoning blocks some free models emit before answering. Pure. */
+export function stripThinking(text: string): string {
+  let t = text.replace(/<think>[\s\S]*?<\/think\s*>/gi, "");
+  // Unterminated <think> block (generation cut off): drop everything from the tag onward.
+  const open = t.toLowerCase().indexOf("<think>");
+  if (open !== -1) t = t.slice(0, open);
+  return t.trim();
+}
+
+/** Detect unusable model output: empty, safety fragments, or leaked reasoning. Pure. */
+export function isDegenerate(text: string): boolean {
+  const t = text.trim();
+  if (t.length === 0) return true;
+  return /^(user safety\s*:|safety\s*:|we need to\b|okay,\s|let me\b|let's\b|first,)/i.test(t);
+}
+
+/** Split long text into Telegram-safe chunks, preferring paragraph/line breaks. Pure. */
+export function chunkText(text: string, max = 3900): string[] {
+  if (text.length <= max) return [text];
+  const parts: string[] = [];
+  let rest = text;
+  while (rest.length > max) {
+    const slice = rest.slice(0, max);
+    let cut = Math.max(slice.lastIndexOf("\n\n"), slice.lastIndexOf("\n"), slice.lastIndexOf(" "));
+    if (cut < max * 0.5) cut = max;
+    parts.push(rest.slice(0, cut).trimEnd());
+    rest = rest.slice(cut).trimStart();
+  }
+  if (rest.length > 0) parts.push(rest);
+  return parts;
+}
+
+// ---------------------------------------------------------------------------
 // HTML escaping + templates
 // ---------------------------------------------------------------------------
 

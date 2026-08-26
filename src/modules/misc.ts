@@ -6,7 +6,7 @@ import type { AthenaBot } from "../bot-types.js";
 export const HELP_TEXT = `🤖 <b>Athena — commands</b>
 
 <b>Ask AI</b>
-/ask &lt;question&gt; — ask the AI (or reply to a message with /ask)
+/ask &lt;question&gt; — ask the AI (or reply to a message). Auto-routes: web search &amp; python for current facts or exact computation; charts for numeric answers
 /setpersona &lt;text&gt; — customize /ask style for THIS group • /persona
 
 <b>Study tools</b>

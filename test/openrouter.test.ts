@@ -122,7 +122,8 @@ describe("askOpenRouter", () => {
   });
 
   it("rotates to the next API key when one is rate-limited", async () => {
-    process.env["OPENROUTER_API_KEYS"] = "sk-key-a,sk-key-b";
+    process.env["OPENROUTER_API_KEY"] = "sk-key-a";
+    process.env["OPENROUTER_API_KEY_2"] = "sk-key-b";
     resetFreeModelCache();
     const tried: string[] = [];
     vi.stubGlobal(
@@ -130,7 +131,7 @@ describe("askOpenRouter", () => {
       vi.fn(async (url: unknown, init?: unknown) => {
         const u = String(url);
         if (u.includes("/models")) return new Response(JSON.stringify({ data: [] }), { status: 200 });
-        const auth = String((init as RequestInit).headers && (init as RequestInit).headers instanceof Object ? JSON.stringify((init as RequestInit).headers) : "");
+        const auth = JSON.stringify((init as RequestInit).headers ?? {});
         const body = JSON.parse(String((init as RequestInit).body)) as { model: string };
         const key = auth.includes("sk-key-a") ? "a" : "b";
         tried.push(`${key}:${body.model}`);
@@ -142,7 +143,7 @@ describe("askOpenRouter", () => {
     expect(res.ok).toBe(true);
     if (res.ok) expect(res.text).toBe("Key B answer.");
     expect(tried.some((t) => t.startsWith("b:"))).toBe(true);
-    delete process.env["OPENROUTER_API_KEYS"];
+    delete process.env["OPENROUTER_API_KEY_2"];
   });
 
   it("explains when both providers fail", async () => {
@@ -156,7 +157,7 @@ describe("askOpenRouter", () => {
     );
     const res = await askOpenRouter("q");
     expect(res.ok).toBe(false);
-    if (!res.ok) expect(res.reason).toContain("Both AI providers");
+    if (!res.ok) expect(res.reason).toContain("All AI providers");
   });
 
   it("maps a 401 to a clear key error when it is the only key", async () => {
@@ -170,7 +171,8 @@ describe("askOpenRouter", () => {
   });
 
   it("skips a rejected key and uses the next", async () => {
-    process.env["OPENROUTER_API_KEYS"] = "sk-key-bad,sk-key-good";
+    process.env["OPENROUTER_API_KEY"] = "sk-key-bad";
+    process.env["OPENROUTER_API_KEY_2"] = "sk-key-good";
     resetFreeModelCache();
     vi.stubGlobal(
       "fetch",
@@ -185,7 +187,7 @@ describe("askOpenRouter", () => {
     const res = await askOpenRouter("q");
     expect(res.ok).toBe(true);
     if (res.ok) expect(res.text).toBe("Good key answer.");
-    delete process.env["OPENROUTER_API_KEYS"];
+    delete process.env["OPENROUTER_API_KEY_2"];
   });
 
   it("returns cleaned model output on success", async () => {
@@ -238,6 +240,6 @@ describe("askOpenRouter", () => {
     );
     const res = await askOpenRouter("q");
     expect(res.ok).toBe(false);
-    if (!res.ok) expect(res.reason).toContain("Both AI providers");
+    if (!res.ok) expect(res.reason).toContain("All AI providers");
   });
 });
