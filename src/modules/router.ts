@@ -12,7 +12,7 @@ const WEB_HINTS =
   /\b(today|tonight|yesterday|current(ly)?|latest|newest|recent(ly)?|right now|this (week|month|year)|last (week|month|year)|news|headlines?|weather|forecast|temperature( in)?|price of|stock|shares?|exchange rate|who won|standings|fixture|release date|upcoming|announced|launched|2025|2026|population of)\b/i;
 
 const PYTHON_HINTS =
-  /\b(calculate|compute|solve|evaluate|derivative|differentiate|integrate|integral|limit of|probability|per ?cent of|percentage|square root|cube root|factorial|prime|fibonacci|matrix|determinant|convert .+ (to|into)|how many (seconds|minutes|hours|days|weeks)|sum of|average of|mean of|standard deviation|compound interest|simple interest|emi|gpa)\b/i;
+  /\b(calc\w*|comput\w*|solve|evaluate|derivative|differentiat\w*|integrat\w*|limit of|probability|per ?cent of|percentage|square root|cube root|factorial|prime|fibonacci|matrix|determinant|convert .+ (to|into)|how (fast|long|much (fuel|thrust|energy|force|power))\b|(time|fuel|thrust|energy|velocity|speed) (needed|required|to reach)|sum of|average of|mean of|standard deviation|compound interest|simple interest|emi|gpa|escape velocity|delta.?v|trajectory)\b/i;
 
 /** Pure heuristic routing decision. */
 export function routeDecision(question: string): Route {

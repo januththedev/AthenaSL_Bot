@@ -8,6 +8,15 @@ describe("routeDecision", () => {
     expect(routeDecision("convert 5 km to miles")).toBe("python");
   });
 
+  it("routes misspelled and physics computation questions to python", () => {
+    // Real user typo that previously fell through to the generic chain:
+    expect(routeDecision("calculte the velocity need to reach moon for a rocket")).toBe("python");
+    expect(routeDecision("cal the time needed")).toBe("python");
+    expect(routeDecision("time needed to reach the moon")).toBe("python");
+    expect(routeDecision("how much fuel is required for a 10 ton rocket")).toBe("python");
+    expect(routeDecision("what is escape velocity")).toBe("python");
+  });
+
   it("routes current-events questions to web", () => {
     expect(routeDecision("who won the cricket match today?")).toBe("web");
     expect(routeDecision("latest news about space launches")).toBe("web");
