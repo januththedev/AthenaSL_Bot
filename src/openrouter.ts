@@ -80,11 +80,13 @@ export function isDegenerate(text: string): boolean {
   return /^(user safety\s*:|safety\s*:|we need to\b|okay,\s|let me\b|let's\b|first,)/i.test(t);
 }
 
+type Attempt = { done: true; result: AskResult } | { done: false; rateLimited?: boolean };
+
 async function callModel(
   model: string,
   question: string,
   system: string,
-): Promise<AskResult | "retry"> {
+): Promise<Attempt> {
   let res: Response;
   try {
     res = await fetch(ENDPOINT, {
@@ -105,7 +107,7 @@ async function callModel(
     });
   } catch (err) {
     console.error("openrouter fetch failed", err);
-    return "retry";
+    return { done: false };
   }
 
   let body: ChatCompletionResponse | undefined;
@@ -116,29 +118,99 @@ async function callModel(
   }
 
   if (!res.ok) {
-    // Rate limits / upstream flakes are worth retrying on the fallback model;
+    // Rate limits / upstream flakes are worth retrying on the next free model;
     // key and credit problems are not model-specific, so fail immediately.
-    if (res.status === 429 || res.status >= 500) return "retry";
-    return { ok: false, reason: failureReason(res.status, body?.error?.message) };
+    if (res.status === 429 || res.status >= 500) return { done: false, rateLimited: res.status === 429 };
+    return { done: true, result: { ok: false, reason: failureReason(res.status, body?.error?.message) } };
   }
 
   const raw = body?.choices?.[0]?.message?.content ?? "";
   const text = stripThinking(raw);
-  if (isDegenerate(text)) return "retry";
-  return { ok: true, text };
+  if (isDegenerate(text)) return { done: false };
+  return { done: true, result: { ok: true, text } };
+}
+
+// ---------------------------------------------------------------------------
+// Always-free model chain: primary → fallback → auto-discovered :free models
+// ---------------------------------------------------------------------------
+
+interface CatalogEntry {
+  id?: string;
+  pricing?: { prompt?: string | number; completion?: string | number };
+}
+
+const PREFERRED_FAMILIES = ["minimax", "gemma", "glm", "qwen", "llama", "deepseek", "mistral", "nemotron"];
+
+/**
+ * Filter a model catalog down to free models only (zero input/output pricing),
+ * excluding already-tried ids, preferring well-known families. Pure.
+ */
+export function pickFreeModels(
+  catalog: CatalogEntry[],
+  exclude: string[],
+  limit = 4,
+): string[] {
+  const free = catalog
+    .filter(
+      (m): m is CatalogEntry & { id: string } =>
+        typeof m.id === "string" &&
+        m.id.length > 0 &&
+        (m.id.endsWith(":free") ||
+          (Number(m.pricing?.prompt ?? -1) === 0 && Number(m.pricing?.completion ?? -1) === 0)),
+    )
+    .map((m) => m.id)
+    .filter((id) => !exclude.includes(id));
+  const score = (id: string) => {
+    const i = PREFERRED_FAMILIES.findIndex((f) => id.toLowerCase().includes(f));
+    return i === -1 ? PREFERRED_FAMILIES.length : i;
+  };
+  return free.sort((a, b) => score(a) - score(b)).slice(0, limit);
+}
+
+let freeModelCache: { at: number; models: string[] } | undefined;
+
+/** Test hook: clears the discovered free-model cache. */
+export function resetFreeModelCache(): void {
+  freeModelCache = undefined;
+}
+
+async function discoverFreeModels(exclude: string[]): Promise<string[]> {
+  if (freeModelCache && Date.now() - freeModelCache.at < 3_600_000) {
+    return freeModelCache.models.filter((id) => !exclude.includes(id));
+  }
+  try {
+    const res = await fetch("https://openrouter.ai/api/v1/models", {
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) return [];
+    const data = (await res.json()) as { data?: CatalogEntry[] };
+    const picked = pickFreeModels(data.data ?? [], exclude);
+    freeModelCache = { at: Date.now(), models: picked };
+    return picked;
+  } catch (err) {
+    console.error("free-model discovery failed", err);
+    return [];
+  }
 }
 
 export async function askOpenRouter(
   question: string,
   system: string = SYSTEM_PROMPT,
 ): Promise<AskResult> {
-  const models = [...new Set([config.openrouterModel, config.openrouterFallback])];
+  const primary = [...new Set([config.openrouterModel, config.openrouterFallback])];
+  const extras = await discoverFreeModels(primary);
+  const models = [...primary, ...extras].slice(0, 6);
+  let sawRateLimit = false;
+
   for (const model of models) {
-    const result = await callModel(model, question, system);
-    if (result !== "retry") return result;
+    const attempt = await callModel(model, question, system);
+    if (attempt.done) return attempt.result;
+    if (attempt.rateLimited) sawRateLimit = true;
   }
   return {
     ok: false,
-    reason: `The AI models (${models.join(", ")}) are rate-limited or returned unusable answers right now. Try again in a minute — or set OPENROUTER_MODEL to another free model from openrouter.ai/models?max_price=0.`,
+    reason: sawRateLimit
+      ? "All free AI models are rate-limited right now. The free tier allows ~50 requests/day (resets at midnight UTC) — adding $5 of credits on openrouter.ai raises it to 1,000/day."
+      : `The AI models (${models.join(", ")}) returned unusable answers. Try again in a minute.`,
   };
 }

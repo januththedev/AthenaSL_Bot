@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { askOpenRouter, chunkText, isDegenerate, stripThinking } from "../src/openrouter.js";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { askOpenRouter, chunkText, isDegenerate, pickFreeModels, resetFreeModelCache, stripThinking } from "../src/openrouter.js";
 
 process.env["OPENROUTER_API_KEY"] = "test-key";
 process.env["OPENROUTER_MODEL"] = "test/model:free";
@@ -49,8 +49,72 @@ describe("isDegenerate", () => {
   });
 });
 
+describe("pickFreeModels", () => {
+  const catalog = [
+    { id: "openai/gpt-4o", pricing: { prompt: "2.5", completion: "10" } },
+    { id: "minimax/minimax-m2.7:free" },
+    { id: "z-ai/glm-5.2:free" },
+    { id: "google/gemma-4-31b-it:free" },
+    { id: "tiny/unknown:free" },
+    { id: "paid-but-zero-typo", pricing: { prompt: "0.0001", completion: "3" } },
+  ];
+
+  it("keeps only free models and excludes already-tried ones", () => {
+    const picked = pickFreeModels(catalog, ["minimax/minimax-m2.7:free", "google/gemma-4-31b-it:free"]);
+    expect(picked).toEqual(["z-ai/glm-5.2:free", "tiny/unknown:free"]);
+  });
+
+  it("prefers well-known families over unknown ones", () => {
+    const picked = pickFreeModels(catalog, []);
+    expect(picked[0]).toBe("minimax/minimax-m2.7:free");
+    expect(picked).not.toContain("openai/gpt-4o");
+    expect(picked).not.toContain("paid-but-zero-typo");
+  });
+
+  it("respects the limit", () => {
+    expect(pickFreeModels(catalog, [], 1).length).toBe(1);
+  });
+});
+
 describe("askOpenRouter", () => {
   afterEach(() => vi.unstubAllGlobals());
+  beforeEach(() => resetFreeModelCache());
+
+  it("walks the discovered free-model chain on rate limits", async () => {
+    const tried: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: unknown, init?: unknown) => {
+        const u = String(url);
+        if (u.includes("/models")) {
+          return new Response(JSON.stringify({ data: [{ id: "z-ai/glm-5.2:free" }] }), { status: 200 });
+        }
+        const body = JSON.parse(String((init as RequestInit).body)) as { model: string };
+        tried.push(body.model);
+        if (body.model === "z-ai/glm-5.2:free") {
+          return new Response(JSON.stringify({ choices: [{ message: { content: "Answer from glm." } }] }), { status: 200 });
+        }
+        return new Response(JSON.stringify({ error: { message: "rate limited" } }), { status: 429 });
+      }),
+    );
+    const res = await askOpenRouter("q");
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.text).toBe("Answer from glm.");
+    expect(tried).toContain("z-ai/glm-5.2:free");
+  });
+
+  it("mentions the daily quota when everything is rate-limited", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: unknown) => {
+        if (String(url).includes("/models")) return new Response(JSON.stringify({ data: [] }), { status: 200 });
+        return new Response(JSON.stringify({ error: { message: "daily cap" } }), { status: 429 });
+      }),
+    );
+    const res = await askOpenRouter("q");
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.reason).toContain("1,000/day");
+  });
 
   it("maps a 401 to a friendly key error", async () => {
     vi.stubGlobal(

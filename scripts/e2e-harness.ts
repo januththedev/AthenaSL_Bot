@@ -70,6 +70,12 @@ await bot.init();
 // rendering, delivery). Real-AI behavior is validated in live runs.
 const realFetch = globalThis.fetch.bind(globalThis);
 globalThis.fetch = (async (url: unknown, init?: unknown) => {
+  if (String(url).includes("openrouter.ai/api/v1/models")) {
+    return new Response(
+      JSON.stringify({ data: [{ id: "minimax/minimax-m2.7:free" }, { id: "google/gemma-4-31b-it:free" }] }),
+      { status: 200 },
+    );
+  }
   if (String(url).includes("openrouter.ai/api/v1/chat/completions")) {
     const body = JSON.parse(String((init as RequestInit | undefined)?.body ?? "{}")) as { messages?: { content?: string }[] };
     // Note: some modules pass their instruction as the user message, so match both.

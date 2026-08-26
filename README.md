@@ -106,7 +106,7 @@ Every request is authenticated via the webhook secret token header — requests 
 | `WEBHOOK_SECRET` | prod | Secret sent back on every webhook call |
 | `POSTGRES_URL` | ✅ prod | Neon Postgres — injected automatically by Vercel's Storage → Neon integration |
 | `OPENROUTER_API_KEY` | ✅ | AI answers |
-| `OPENROUTER_MODEL` | – | Model id. Free slugs rotate often — browse [openrouter.ai/models?max_price=0](https://openrouter.ai/models?max_price=0). Default: `minimax/minimax-m2.7:free` |
+| `OPENROUTER_MODEL` | – | Preferred free model. Free slugs rotate often — browse [openrouter.ai/models?max_price=0](https://openrouter.ai/models?max_price=0). Default: `minimax/minimax-m2.7:free` |
 | `OPENROUTER_MODEL_FALLBACK` | – | Tried automatically when the primary is rate-limited or returns junk |
 | `POLLINATIONS_MODEL` | – | Image model for /draw (default `flux`) |
 | `ASK_DAILY_LIMIT` | – | Per-user /ask calls per day (default 10) |
@@ -115,6 +115,15 @@ Every request is authenticated via the webhook secret token header — requests 
 
 > Free OpenRouter keys allow ~50 requests/day unless you've purchased ≥10 credits
 > (then 1000/day). The per-user quota protects your key from being drained.
+
+### Always-free model chain
+
+The bot only ever uses **free** models, tried in this order: `OPENROUTER_MODEL` →
+`OPENROUTER_MODEL_FALLBACK` → up to 4 more `:free` models **auto-discovered** from
+OpenRouter's public catalog (cached 1 h, preferring known-good families). Junk
+answers ("User Safety: safe", leaked reasoning) and per-model rate limits are
+skipped automatically. Note the ~50/day free cap is **account-level** — model
+rotation can't bypass it; credits raise it to 1,000/day.
 
 ## Architecture
 
